@@ -17,6 +17,7 @@
   display: flex;
   align-items: baseline;
   gap: 10px;
+  width: 100%;
 }
 
 .brand-name {
@@ -26,6 +27,17 @@
 
 .brand-sub {
   font-size: 13px;
+}
+
+.github-link {
+  margin-left: auto;
+  align-self: center;
+  color: var(--muted-foreground);
+  display: inline-flex;
+}
+
+.github-link:hover {
+  color: var(--foreground);
 }
 
 .tabs {

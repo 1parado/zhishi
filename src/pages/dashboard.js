@@ -20,6 +20,7 @@ import {
   saveSettings,
   setLimitEnabled,
 } from '../lib/settings.js';
+import { applyI18n, initI18n, refreshLocale, t } from '../lib/i18n.js';
 import { clearAllData, getAllDays } from '../background/store.js';
 
 const $ = (id) => document.getElementById(id);
@@ -86,15 +87,15 @@ function renderOverview(days, settings) {
   $('goalMinutes').value = String(settings.goal.dailyMinutes);
   $('goalHint').textContent = settings.goal.enabled
     ? {
-        ok: '状态不错',
-        near: '接近目标',
-        over: '已超过目标',
+        ok: t('goalOk'),
+        near: t('goalNear'),
+        over: t('goalOver'),
         none: '',
       }[goalVariant(todayTotal, goalSeconds)]
     : '';
 
   $('statWeek').textContent = fmtDuration(weekTotal);
-  $('statWeekAvg').textContent = `日均 ${fmtDuration(Math.round(weekTotal / 7))}`;
+  $('statWeekAvg').textContent = t('dailyAvg', { time: fmtDuration(Math.round(weekTotal / 7)) });
 
   renderWeekChart(week, settings.weekChart);
   renderHeatmap(days, todayKey);
@@ -161,7 +162,7 @@ function renderWeekBar(week, wrap) {
 
     const label = document.createElement('span');
     label.className = 'week-label';
-    label.textContent = day.key === todayKey ? '今天' : weekdayShort(day.key);
+    label.textContent = day.key === todayKey ? t('today') : weekdayShort(day.key);
 
     col.append(bar, label);
     wrap.append(col);
@@ -213,7 +214,7 @@ function renderWeekPie(week, wrap) {
   if (total <= 0) {
     const empty = document.createElement('p');
     empty.className = 'empty';
-    empty.textContent = '近 7 天还没有记录。';
+    empty.textContent = t('rankEmptyWeek');
     wrap.append(empty);
     return;
   }
@@ -260,7 +261,7 @@ function renderWeekPie(week, wrap) {
   value.textContent = fmtDuration(total);
   const caption = document.createElement('span');
   caption.className = 'muted';
-  caption.textContent = '近 7 天';
+  caption.textContent = t('rangeWeek');
   center.append(value, caption);
   pieWrap.append(center);
 
@@ -273,7 +274,7 @@ function appendWeekLabels(wrap, week, todayKey) {
   for (const day of week) {
     const span = document.createElement('span');
     span.className = 'week-label' + (day.key === todayKey ? ' is-today' : '');
-    span.textContent = day.key === todayKey ? '今天' : weekdayShort(day.key);
+    span.textContent = day.key === todayKey ? t('today') : weekdayShort(day.key);
     labels.append(span);
   }
   wrap.append(labels);
@@ -304,7 +305,7 @@ function renderHeatmap(days, todayKey) {
     wrap.append(el);
   }
 
-  $('yearTotal').textContent = `共 ${fmtDuration(yearTotal)}`;
+  $('yearTotal').textContent = t('yearTotal', { time: fmtDuration(yearTotal) });
 }
 
 // 排行展示条数：默认前 7，可展开查看更多。
@@ -336,7 +337,7 @@ function renderTopSites(days, todayKey, range) {
   if (!total) {
     const empty = document.createElement('p');
     empty.className = 'empty';
-    empty.textContent = range === 'day' ? '今天还没有记录。' : '近 7 天还没有记录。';
+    empty.textContent = range === 'day' ? t('rankEmptyDay') : t('rankEmptyWeek');
     wrap.append(empty);
     return;
   }
@@ -369,7 +370,9 @@ function renderTopSites(days, todayKey, range) {
     const more = document.createElement('button');
     more.type = 'button';
     more.className = 'btn btn-ghost btn-sm top-more';
-    more.textContent = topSitesExpanded ? '收起' : `查看更多（共 ${total} 个站点）`;
+    more.textContent = topSitesExpanded
+      ? t('showLess')
+      : t('showMore', { n: total });
     more.addEventListener('click', () => {
       topSitesExpanded = !topSitesExpanded;
       if (latestDays && latestSettings) {
@@ -400,7 +403,7 @@ function renderLimits(settings) {
     openScheduleId = null;
     const empty = document.createElement('p');
     empty.className = 'empty';
-    empty.textContent = '还没有添加限额网站。用上方表单添加第一条。';
+    empty.textContent = t('limitsEmpty');
     list.append(empty);
     return;
   }
@@ -413,7 +416,7 @@ function renderLimits(settings) {
   if (!shown.length) {
     const empty = document.createElement('p');
     empty.className = 'empty';
-    empty.textContent = '没有符合条件的限额网站，换个关键词或筛选条件试试。';
+    empty.textContent = t('limitsEmptyFiltered');
     list.append(empty);
     return;
   }
@@ -427,17 +430,22 @@ function renderLimits(settings) {
     const domain = document.createElement('span');
     domain.className = 'limit-domain';
     domain.textContent = limit.domain;
-    const scheduleText = limit.schedule ? ` · ${limit.schedule.from}–${limit.schedule.to} 屏蔽` : '';
+    const scheduleText = limit.schedule
+      ? t('blockedSuffix', { from: limit.schedule.from, to: limit.schedule.to })
+      : '';
     const desc = document.createElement('span');
     desc.className = 'muted num';
-    desc.textContent = `每日 ${limit.minutes} 分钟${scheduleText}${limit.enabled ? '' : ' · 已停用'}`;
+    desc.textContent =
+      t('perDay', { n: limit.minutes }) +
+      scheduleText +
+      (limit.enabled ? '' : t('disabledSuffix'));
     info.append(domain, desc);
 
     const schedBtn = document.createElement('button');
     schedBtn.type = 'button';
     schedBtn.className = 'schedule-btn';
-    schedBtn.textContent = '时段';
-    schedBtn.title = '时段屏蔽：设定时间窗内打开该网站直接拦截';
+    schedBtn.textContent = t('scheduleBtn');
+    schedBtn.title = t('scheduleHint');
     schedBtn.setAttribute('aria-pressed', String(openScheduleId === limit.id));
     schedBtn.addEventListener('click', () => {
       openScheduleId = openScheduleId === limit.id ? null : limit.id;
@@ -448,7 +456,7 @@ function renderLimits(settings) {
     sw.className = 'switch';
     sw.setAttribute('role', 'switch');
     sw.setAttribute('aria-checked', String(limit.enabled));
-    sw.setAttribute('aria-label', `${limit.domain} 限额开关`);
+    sw.setAttribute('aria-label', t('limitSwitchAria', { domain: limit.domain }));
     sw.addEventListener('click', async () => {
       await setLimitEnabled(limit.id, !limit.enabled);
     });
@@ -456,7 +464,7 @@ function renderLimits(settings) {
     const del = document.createElement('button');
     del.className = 'limit-delete';
     del.textContent = '✕';
-    del.setAttribute('aria-label', `删除 ${limit.domain} 限额`);
+    del.setAttribute('aria-label', t('limitRemoveAria', { domain: limit.domain }));
     del.addEventListener('click', async () => {
       if (openScheduleId === limit.id) openScheduleId = null;
       await removeLimit(limit.id);
@@ -477,23 +485,23 @@ function buildScheduleEditor(limit) {
   const cb = document.createElement('input');
   cb.type = 'checkbox';
   cb.checked = !!limit.schedule;
-  label.append(cb, document.createTextNode('启用时段屏蔽'));
+  label.append(cb, document.createTextNode(t('scheduleEnable')));
 
   const from = document.createElement('input');
   from.type = 'time';
   from.value = limit.schedule?.from ?? '23:00';
-  from.setAttribute('aria-label', '屏蔽开始时间');
+  from.setAttribute('aria-label', t('scheduleStartAria'));
   const sep = document.createElement('span');
   sep.className = 'muted';
-  sep.textContent = '至';
+  sep.textContent = t('to');
   const to = document.createElement('input');
   to.type = 'time';
   to.value = limit.schedule?.to ?? '08:00';
-  to.setAttribute('aria-label', '屏蔽结束时间');
+  to.setAttribute('aria-label', t('scheduleEndAria2'));
 
   const hint = document.createElement('span');
   hint.className = 'muted hint';
-  hint.textContent = '窗口内打开该网站直接拦截，支持跨零点，放行 10 分钟仍然有效';
+  hint.textContent = t('scheduleHint');
 
   async function save(schedule) {
     // 时间不完整或相等视为无效，不落盘（跨零点允许 from > to）。
@@ -662,7 +670,7 @@ function renderHeartbeat(settings) {
     const del = document.createElement('button');
     del.type = 'button';
     del.textContent = '✕';
-    del.setAttribute('aria-label', `移除 ${site} 的视频心跳`);
+    del.setAttribute('aria-label', t('hbRemoveAria', { domain: site }));
     del.addEventListener('click', async () => {
       const s = await getSettings();
       await saveSettings({
@@ -698,13 +706,12 @@ async function renderHeartbeatStatus() {
     const res = await chrome.runtime.sendMessage({ type: 'debug-heartbeats' });
     const entries = Object.entries(res?.heartbeats || {});
     if (!entries.length) {
-      el.textContent = '当前没有收到心跳：播放中的视频站点需在白名单内；扩展重载后请刷新对应页面。';
+      el.textContent = t('hbNone');
       return;
     }
-    el.textContent = `当前心跳：${entries
-      .map(([domain, age]) => `${domain} · ${age} 秒前`)
-      .join('，')}`;
-  } catch {
+    el.textContent = t('hbNow', {
+      list: entries.map(([domain, age]) => `${domain} · ${age}${t('secondsAgo')}`).join(', '),
+    });  } catch {
     el.textContent = '';
   }
 }
@@ -738,10 +745,10 @@ let clearArmed = null;
 $('clearBtn').addEventListener('click', async (event) => {
   const btn = event.currentTarget;
   if (!clearArmed) {
-    btn.textContent = '再次点击确认删除';
+    btn.textContent = t('clearConfirm');
     btn.classList.replace('btn-outline', 'btn-destructive');
     clearArmed = setTimeout(() => {
-      btn.textContent = '清除全部记录';
+      btn.textContent = t('clearBtn');
       btn.classList.replace('btn-destructive', 'btn-outline');
       clearArmed = null;
     }, 3000);
@@ -749,7 +756,7 @@ $('clearBtn').addEventListener('click', async (event) => {
   }
   clearTimeout(clearArmed);
   clearArmed = null;
-  btn.textContent = '清除全部记录';
+  btn.textContent = t('clearBtn');
   btn.classList.replace('btn-destructive', 'btn-outline');
   await clearAllData();
 });
@@ -757,16 +764,38 @@ $('clearBtn').addEventListener('click', async (event) => {
 /* ---------- 渲染入口 ---------- */
 
 async function render() {
+  await initI18n();
+  renderLocaleSwitch(await initI18n());
   const { days, settings } = await loadAll();
   latestDays = days;
   latestSettings = settings;
   renderActiveTab();
 }
 
+function renderLocaleSwitch(locale) {
+  for (const segment of document.querySelectorAll('#localeSwitch .segment')) {
+    segment.setAttribute('aria-pressed', String(segment.dataset.locale === locale));
+  }
+}
+
+// 语言切换：保存偏好 → 刷新词典缓存 → 重套文案 → 重渲染当前选项卡。
+for (const segment of document.querySelectorAll('#localeSwitch .segment')) {
+  segment.addEventListener('click', async () => {
+    await saveSettings({ locale: segment.dataset.locale });
+    refreshLocale(segment.dataset.locale);
+    await applyI18n();
+    renderActiveTab();
+  });
+}
+
 // 后台每分钟落盘，保持页面数据最新。
 let renderTimer = null;
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== 'local') return;
+  if (changes.settings) {
+    refreshLocale(changes.settings.newValue?.locale);
+    applyI18n().then(renderActiveTab);
+  }
   clearTimeout(renderTimer);
   renderTimer = setTimeout(render, 300);
 });

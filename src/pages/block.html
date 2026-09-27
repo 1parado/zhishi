@@ -14,14 +14,14 @@
           <path d="M28 16v12l8 6" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
         </svg>
       </div>
-      <h1 id="title">该网站今日限额已用完</h1>
+      <h1 id="blockTitleText" data-i18n="blockTitle">该网站今日限额已用完</h1>
       <p class="block-domain" id="domain"></p>
       <p class="muted block-usage num" id="usage"></p>
       <div class="block-actions">
-        <button class="btn" id="grantBtn">放行 10 分钟</button>
-        <a href="dashboard.html" class="btn btn-outline">去看看统计</a>
+        <button class="btn" id="grantBtn" data-i18n="grantBtn">放行 10 分钟</button>
+        <a href="dashboard.html" class="btn btn-outline" data-i18n="viewStats">去看看统计</a>
       </div>
-      <p class="muted block-note">明天自动恢复。放行期间会继续正常计时。</p>
+      <p class="muted block-note" data-i18n="blockNote">明天自动恢复。放行期间会继续正常计时。</p>
     </main>
     <script type="module" src="block.js"></script>
   </body>

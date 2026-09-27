@@ -11,13 +11,27 @@
       <header class="top">
         <div class="brand">
           <span class="brand-name">知时</span>
-          <span class="muted brand-sub">注意力与健康 · 数据仅存本机</span>
+          <span class="muted brand-sub" data-i18n="brandSubDash">注意力与健康 · 数据仅存本机</span>
+          <a
+            class="github-link"
+            href="https://github.com/1parado/zhishi"
+            target="_blank"
+            rel="noreferrer"
+            data-i18n-title="githubTitle"
+            aria-label="GitHub"
+          >
+            <svg viewBox="0 0 16 16" width="20" height="20" fill="currentColor" aria-hidden="true">
+              <path
+                d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"
+              />
+            </svg>
+          </a>
         </div>
         <nav class="tabs" aria-label="仪表盘分区">
-          <button class="tab" data-tab="overview" aria-pressed="true">概览</button>
-          <button class="tab" data-tab="limits" aria-pressed="false">网站限额</button>
-          <button class="tab" data-tab="health" aria-pressed="false">健康提醒</button>
-          <button class="tab" data-tab="data" aria-pressed="false">计时与数据</button>
+          <button class="tab" data-tab="overview" aria-pressed="true" data-i18n="tabOverview">概览</button>
+          <button class="tab" data-tab="limits" aria-pressed="false" data-i18n="tabLimits">网站限额</button>
+          <button class="tab" data-tab="health" aria-pressed="false" data-i18n="tabHealth">健康提醒</button>
+          <button class="tab" data-tab="data" aria-pressed="false" data-i18n="tabData">计时与数据</button>
         </nav>
       </header>
 
@@ -27,21 +41,21 @@
           <div class="stat-row">
             <div class="card card-pad stat-card">
               <div class="stat-head">
-                <p class="card-title">今日</p>
+                <p class="card-title" data-i18n="today">今日</p>
                 <label class="goal-toggle muted">
                   <input type="checkbox" id="goalEnabled" />
-                  每日目标
+                  <span data-i18n="dailyGoal">每日目标</span>
                 </label>
               </div>
               <p class="stat-value num" id="statToday">0 分钟</p>
               <div class="goal-line" id="goalLine" hidden>
-                <input class="input num" id="goalMinutes" type="number" min="15" max="1440" step="15" aria-label="每日目标分钟数" />
-                <span class="muted">分钟</span>
+                <input class="input num" id="goalMinutes" type="number" min="15" max="1440" step="15" aria-label="每日目标分钟数" data-i18n-aria="goalMinutesAria" />
+                <span class="muted" data-i18n="minutes">分钟</span>
                 <span class="muted num" id="goalHint"></span>
               </div>
             </div>
             <div class="card card-pad stat-card">
-              <p class="card-title">近 7 天</p>
+              <p class="card-title" data-i18n="last7">近 7 天</p>
               <p class="stat-value num" id="statWeek">0 分钟</p>
               <p class="card-desc num" id="statWeekAvg"></p>
             </div>
@@ -49,11 +63,11 @@
 
           <div class="card card-pad">
             <div class="section-head">
-              <h2 class="card-title">近 7 天</h2>
+              <h2 class="card-title" data-i18n="last7">近 7 天</h2>
               <div class="segmented" role="group" aria-label="图表形式" id="weekChartType">
-                <button class="segment" type="button" data-type="bar" aria-pressed="true">柱状</button>
-                <button class="segment" type="button" data-type="line" aria-pressed="false">折线</button>
-                <button class="segment" type="button" data-type="pie" aria-pressed="false">饼状</button>
+                <button class="segment" type="button" data-type="bar" aria-pressed="true" data-i18n="chartBar">柱状</button>
+                <button class="segment" type="button" data-type="line" aria-pressed="false" data-i18n="chartLine">折线</button>
+                <button class="segment" type="button" data-type="pie" aria-pressed="false" data-i18n="chartPie">饼状</button>
               </div>
             </div>
             <div id="weekChart"></div>
@@ -61,27 +75,27 @@
 
           <div class="card card-pad">
             <div class="section-head">
-              <h2 class="card-title">近一年</h2>
+              <h2 class="card-title" data-i18n="pastYear">近一年</h2>
               <span class="muted num" id="yearTotal"></span>
             </div>
             <div class="heatmap" id="heatmap"></div>
             <div class="heat-legend muted">
-              <span>少</span>
+              <span data-i18n="heatFew">少</span>
               <span class="heat-cell" data-level="0"></span>
               <span class="heat-cell" data-level="1"></span>
               <span class="heat-cell" data-level="2"></span>
               <span class="heat-cell" data-level="3"></span>
               <span class="heat-cell" data-level="4"></span>
-              <span>多</span>
+              <span data-i18n="heatMany">多</span>
             </div>
           </div>
 
           <div class="card card-pad">
             <div class="section-head">
-              <h2 class="card-title">网站排行</h2>
+              <h2 class="card-title" data-i18n="topSites">网站排行</h2>
               <div class="segmented" role="group" aria-label="排行范围" id="topSitesRange">
-                <button class="segment" type="button" data-range="day" aria-pressed="false">今日</button>
-                <button class="segment" type="button" data-range="week" aria-pressed="true">近 7 天</button>
+                <button class="segment" type="button" data-range="day" aria-pressed="false" data-i18n="rangeDay">今日</button>
+                <button class="segment" type="button" data-range="week" aria-pressed="true" data-i18n="rangeWeek">近 7 天</button>
               </div>
             </div>
             <div id="topSites"></div>
@@ -93,27 +107,27 @@
           <div class="card card-pad">
             <div class="limit-master">
               <div>
-                <h2 class="card-title">网站限额</h2>
-                <p class="card-desc">为指定网站设置每日使用上限，达到后打开该网站会跳转到提醒页，次日自动恢复。</p>
+                <h2 class="card-title" data-i18n="siteLimits">网站限额</h2>
+                <p class="card-desc" data-i18n="limitsDesc">为指定网站设置每日使用上限，达到后打开该网站会跳转到提醒页，次日自动恢复。</p>
               </div>
-              <button class="switch" role="switch" id="limitMaster" aria-label="网站限额总开关"></button>
+              <button class="switch" role="switch" id="limitMaster" aria-label="网站限额总开关" data-i18n-aria="siteLimits"></button>
             </div>
           </div>
 
           <form class="card card-pad limit-form" id="limitForm">
-            <input class="input" id="limitDomain" type="text" placeholder="网站域名，如 bilibili.com" required />
-            <input class="input num" id="limitMinutes" type="number" min="5" max="1440" value="30" required aria-label="每日分钟数" />
-            <span class="muted">分钟 / 天</span>
-            <button class="btn btn-sm" type="submit">添加</button>
+            <input class="input" id="limitDomain" type="text" placeholder="网站域名，如 bilibili.com" data-i18n-placeholder="domainPlaceholder" required />
+            <input class="input num" id="limitMinutes" type="number" min="5" max="1440" value="30" required aria-label="每日分钟数" data-i18n-aria="limitMinutesAria" />
+            <span class="muted" data-i18n="minutesPerDay">分钟 / 天</span>
+            <button class="btn btn-sm" type="submit" data-i18n="add">添加</button>
           </form>
 
           <div class="card limit-toolbar">
-            <input class="input" id="limitSearch" type="search" placeholder="按网站名查找…" aria-label="按网站名查找限额" />
-            <div class="segmented" role="group" aria-label="限额筛选条件">
-              <button class="segment" type="button" data-status="all" aria-pressed="true">全部</button>
-              <button class="segment" type="button" data-status="on" aria-pressed="false">启用中</button>
-              <button class="segment" type="button" data-status="off" aria-pressed="false">已停用</button>
-              <button class="segment" type="button" data-status="over" aria-pressed="false">今日已达</button>
+            <input class="input" id="limitSearch" type="search" placeholder="按网站名查找…" data-i18n-placeholder="searchPlaceholder" aria-label="按网站名查找限额" data-i18n-aria="searchPlaceholder" />
+            <div class="segmented" role="group" aria-label="限额筛选条件" id="limitFilter">
+              <button class="segment" type="button" data-status="all" aria-pressed="true" data-i18n="filterAll">全部</button>
+              <button class="segment" type="button" data-status="on" aria-pressed="false" data-i18n="filterOn">启用中</button>
+              <button class="segment" type="button" data-status="off" aria-pressed="false" data-i18n="filterOff">已停用</button>
+              <button class="segment" type="button" data-status="over" aria-pressed="false" data-i18n="filterOver">今日已达</button>
             </div>
           </div>
 
@@ -125,47 +139,47 @@
           <div class="card card-pad">
             <div class="limit-master">
               <div>
-                <h2 class="card-title">提醒时段</h2>
-                <p class="card-desc">护眼与久坐提醒只在所选时段内触发，避免深夜打扰。</p>
+                <h2 class="card-title" data-i18n="reminderSchedule">提醒时段</h2>
+                <p class="card-desc" data-i18n="reminderScheduleDesc">护眼与久坐提醒只在所选时段内触发，避免深夜打扰。</p>
               </div>
               <div class="segmented" role="group" aria-label="提醒时段模式" id="activeHoursMode">
-                <button class="segment" type="button" data-mode="all" aria-pressed="true">全天</button>
-                <button class="segment" type="button" data-mode="range" aria-pressed="false">时间段</button>
+                <button class="segment" type="button" data-mode="all" aria-pressed="true" data-i18n="allDay">全天</button>
+                <button class="segment" type="button" data-mode="range" aria-pressed="false" data-i18n="timeWindow">时间段</button>
               </div>
             </div>
             <div class="hours-row" id="activeHoursRange" hidden>
-              <input class="input" id="activeFrom" type="time" aria-label="时段开始" />
-              <span class="muted">至</span>
-              <input class="input" id="activeTo" type="time" aria-label="时段结束" />
-              <span class="muted">支持跨零点，如 09:00 至 22:00</span>
+              <input class="input" id="activeFrom" type="time" aria-label="时段开始" data-i18n-aria="scheduleStartAria" />
+              <span class="muted" data-i18n="to">至</span>
+              <input class="input" id="activeTo" type="time" aria-label="时段结束" data-i18n-aria="scheduleEndAria2" />
+              <span class="muted" data-i18n="crossMidnightHint">支持跨零点，如 09:00 至 22:00</span>
             </div>
           </div>
 
           <div class="card card-pad health-card">
             <div>
-              <h2 class="card-title">护眼提醒</h2>
-              <p class="card-desc">按 20-20-20 法则，定时提醒你望向 6 米外的远处。间隔可设 5–120 分钟。</p>
+              <h2 class="card-title" data-i18n="eyeTitle">护眼提醒</h2>
+              <p class="card-desc" data-i18n="eyeDesc">按 20-20-20 法则，定时提醒你望向 6 米外的远处。间隔可设 5–120 分钟。</p>
             </div>
             <div class="health-controls">
               <label class="interval-field">
-                <input class="input num" id="eyeInterval" type="number" min="5" max="120" step="1" aria-label="护眼提醒间隔（分钟）" />
-                <span class="muted">分钟</span>
+                <input class="input num" id="eyeInterval" type="number" min="5" max="120" step="1" aria-label="护眼提醒间隔（分钟）" data-i18n-aria="eyeIntervalAria" />
+                <span class="muted" data-i18n="minutes">分钟</span>
               </label>
-              <button class="switch" role="switch" id="eyeSwitch" aria-label="护眼提醒开关"></button>
+              <button class="switch" role="switch" id="eyeSwitch" aria-label="护眼提醒开关" data-i18n-aria="eyeTitle"></button>
             </div>
           </div>
 
           <div class="card card-pad health-card">
             <div>
-              <h2 class="card-title">久坐提醒</h2>
-              <p class="card-desc">定时提醒你起身活动，减少连续久坐。间隔可设 10–240 分钟，人离开电脑时不会打扰。</p>
+              <h2 class="card-title" data-i18n="sitTitle">久坐提醒</h2>
+              <p class="card-desc" data-i18n="sitDesc">定时提醒你起身活动，减少连续久坐。间隔可设 10–240 分钟，人离开电脑时不会打扰。</p>
             </div>
             <div class="health-controls">
               <label class="interval-field">
-                <input class="input num" id="sitInterval" type="number" min="10" max="240" step="1" aria-label="久坐提醒间隔（分钟）" />
-                <span class="muted">分钟</span>
+                <input class="input num" id="sitInterval" type="number" min="10" max="240" step="1" aria-label="久坐提醒间隔（分钟）" data-i18n-aria="sitIntervalAria" />
+                <span class="muted" data-i18n="minutes">分钟</span>
               </label>
-              <button class="switch" role="switch" id="sitSwitch" aria-label="久坐提醒开关"></button>
+              <button class="switch" role="switch" id="sitSwitch" aria-label="久坐提醒开关" data-i18n-aria="sitTitle"></button>
             </div>
           </div>
         </section>
@@ -175,41 +189,50 @@
           <div class="card card-pad">
             <div class="limit-master">
               <div>
-                <h2 class="card-title">视频心跳</h2>
-                <p class="card-desc">
-                  对以下站点，页面正在播放音视频时持续计时（含画中画与后台窗口），不受「60 秒无输入视为离开」的闲置判定影响。也可以在视频网站页面右键快速开关。
-                </p>
+                <h2 class="card-title" data-i18n="hbTitle">视频心跳</h2>
+                <p class="card-desc" data-i18n="hbDesc">对以下站点，页面正在播放音视频时持续计时（含画中画与后台窗口），不受「60 秒无输入视为离开」的闲置判定影响。也可以在视频网站页面右键快速开关。</p>
                 <p class="card-desc num" id="heartbeatStatus"></p>
               </div>
-              <button class="switch" role="switch" id="heartbeatSwitch" aria-label="视频心跳开关"></button>
+              <button class="switch" role="switch" id="heartbeatSwitch" aria-label="视频心跳开关" data-i18n-aria="hbTitle"></button>
             </div>
             <div class="chip-row" id="heartbeatSites"></div>
             <form class="limit-form heartbeat-form" id="heartbeatForm">
-              <input class="input" id="heartbeatDomain" type="text" placeholder="域名，如 youtube.com" required />
-              <button class="btn btn-sm" type="submit">添加站点</button>
+              <input class="input" id="heartbeatDomain" type="text" placeholder="域名，如 youtube.com" data-i18n-placeholder="hbDomainPlaceholder" required />
+              <button class="btn btn-sm" type="submit" data-i18n="hbAdd">添加站点</button>
             </form>
           </div>
 
           <div class="card card-pad">
-            <h2 class="card-title">导出</h2>
-            <p class="card-desc">按天、按域名导出全部记录。</p>
-            <div class="data-actions">
-              <button class="btn btn-outline btn-sm" id="exportCsv">导出 CSV</button>
-              <button class="btn btn-outline btn-sm" id="exportJson">导出 JSON</button>
+            <div class="limit-master">
+              <div>
+                <h2 class="card-title" data-i18n="language">语言 / Language</h2>
+                <p class="card-desc" data-i18n="languageDesc">界面语言，切换立即生效。/ UI language, applies immediately.</p>
+              </div>
+              <div class="segmented" role="group" aria-label="Language" id="localeSwitch">
+                <button class="segment" type="button" data-locale="zh" aria-pressed="true">中文</button>
+                <button class="segment" type="button" data-locale="en" aria-pressed="false">English</button>
+              </div>
             </div>
           </div>
 
           <div class="card card-pad">
-            <h2 class="card-title">清除数据</h2>
-            <p class="card-desc">删除全部使用记录，设置会保留。此操作不可恢复。</p>
+            <h2 class="card-title" data-i18n="exportTitle">导出</h2>
+            <p class="card-desc" data-i18n="exportDesc">按天、按域名导出全部记录。</p>
             <div class="data-actions">
-              <button class="btn btn-outline btn-sm" id="clearBtn">清除全部记录</button>
+              <button class="btn btn-outline btn-sm" id="exportCsv" data-i18n="exportCsv">导出 CSV</button>
+              <button class="btn btn-outline btn-sm" id="exportJson" data-i18n="exportJson">导出 JSON</button>
             </div>
           </div>
 
-          <p class="privacy muted">
-            所有数据仅保存在本机浏览器中，不上传任何服务器；只记录域名与时长，不记录页面内容。
-          </p>
+          <div class="card card-pad">
+            <h2 class="card-title" data-i18n="clearTitle">清除数据</h2>
+            <p class="card-desc" data-i18n="clearDesc">删除全部使用记录，设置会保留。此操作不可恢复。</p>
+            <div class="data-actions">
+              <button class="btn btn-outline btn-sm" id="clearBtn" data-i18n="clearBtn">清除全部记录</button>
+            </div>
+          </div>
+
+          <p class="privacy muted" data-i18n="privacy">所有数据仅保存在本机浏览器中，不上传任何服务器；只记录域名与时长，不记录页面内容。</p>
         </section>
       </main>
     </div>

@@ -5,6 +5,7 @@
 
 import { inTimeWindow } from '../lib/pure.js';
 import { getSettings } from '../lib/settings.js';
+import { initI18n, t } from '../lib/i18n.js';
 
 export const EYE_ALARM = 'eyeReminder';
 export const SIT_ALARM = 'sitReminder';
@@ -46,19 +47,21 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   const idleState = await chrome.idle.queryState(60);
   if (idleState !== 'active') return;
 
+  await initI18n(true); // 语言偏好可能刚切换过，强制重读。
+
   if (alarm.name === EYE_ALARM) {
     chrome.notifications.create(`eye-${Date.now()}`, {
       type: 'basic',
       iconUrl: chrome.runtime.getURL('icons/icon128.png'),
-      title: '护眼提醒 · 20-20-20',
-      message: '望向 6 米外的事物 20 秒，让眼睛放松一下。',
+      title: t('notifEyeTitle'),
+      message: t('notifEyeBody'),
     });
   } else {
     chrome.notifications.create(`sit-${Date.now()}`, {
       type: 'basic',
       iconUrl: chrome.runtime.getURL('icons/icon128.png'),
-      title: '久坐提醒',
-      message: '已经连续坐了一段时间，起来活动两分钟吧。',
+      title: t('notifSitTitle'),
+      message: t('notifSitBody'),
     });
   }
 });

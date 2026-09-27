@@ -1,5 +1,6 @@
 import { classifyUrl, dateKey, fmtDuration, goalVariant, sumSeconds } from '../lib/pure.js';
 import { getSettings, saveSettings } from '../lib/settings.js';
+import { applyI18n, initI18n, refreshLocale, t } from '../lib/i18n.js';
 import { getDay } from '../background/store.js';
 import { currentSession } from '../background/tracker.js';
 
@@ -33,11 +34,11 @@ function renderStatus(session, today, activeTab) {
   const el = $('status');
   if (session?.domain) {
     const live = (today[session.domain] || 0) + (Date.now() - session.startedAt) / 1000;
-    el.textContent = `正在记录：${session.domain} · 今日 ${fmtDuration(live)}`;
+    el.textContent = t('statusRecording', { domain: session.domain, time: fmtDuration(live) });
   } else if (activeTab && classifyUrl(activeTab.url) === null) {
-    el.textContent = '当前页面不计入统计（浏览器内部页）';
+    el.textContent = t('statusInternal');
   } else {
-    el.textContent = '浏览器不在前台，计时暂停';
+    el.textContent = t('statusPaused');
   }
 }
 
@@ -58,7 +59,7 @@ function startTicker() {
     const elapsed = (Date.now() - session.startedAt) / 1000;
 
     const liveSite = (cachedToday[session.domain] || 0) + elapsed;
-    $('status').textContent = `正在记录：${session.domain} · 今日 ${fmtDuration(liveSite)}`;
+    $('status').textContent = t('statusRecording', { domain: session.domain, time: fmtDuration(liveSite) });
     if (liveSiteTimeEl) liveSiteTimeEl.textContent = fmtDuration(liveSite);
 
     const liveTotal = fmtDuration(cachedTodayTotal + elapsed);
@@ -79,7 +80,7 @@ function renderToday(today, settings) {
     const circle = $('ringValue');
     circle.dataset.variant = variant;
     circle.style.strokeDashoffset = String(257.6 * (1 - ratio));
-    $('ringCaption').textContent = `目标 ${settings.goal.dailyMinutes} 分钟`;
+    $('ringCaption').textContent = t('goalMinutes', { n: settings.goal.dailyMinutes });
   } else {
     $('ringWrap').hidden = true;
     $('plainWrap').hidden = false;
@@ -97,7 +98,7 @@ function renderSites(today, session) {
   if (!entries.length) {
     const empty = document.createElement('p');
     empty.className = 'empty';
-    empty.textContent = '今天还没有记录，正常使用网页后这里会出现排行。';
+    empty.textContent = t('topEmpty');
     list.append(empty);
     return;
   }
@@ -137,12 +138,12 @@ function renderSwitches(settings) {
   const eye = $('eyeSwitch');
   eye.setAttribute('aria-checked', String(settings.health.eye.enabled));
   $('eyeSub').textContent = settings.health.eye.enabled
-    ? `每 ${settings.health.eye.intervalMin} 分钟望向远处`
-    : '已停用';
+    ? t('eyeEvery', { n: settings.health.eye.intervalMin })
+    : t('off');
 
   const limit = $('limitSwitch');
   limit.setAttribute('aria-checked', String(settings.limitsEnabled));
-  $('limitSub').textContent = settings.limitsEnabled ? '达到限额后拦截' : '已停用';
+  $('limitSub').textContent = settings.limitsEnabled ? t('limitsBlocking') : t('off');
 }
 
 function bindSwitches() {
@@ -165,8 +166,12 @@ function bindSwitches() {
 
 // 数据每分钟落盘、设置即时生效，监听变化保持弹窗实时。
 let sessionRenderTimer = null;
-chrome.storage.onChanged.addListener((changes, area) => {
+chrome.storage.onChanged.addListener(async (changes, area) => {
   if (area === 'local' && (changes.settings || Object.keys(changes).some((k) => k.startsWith('d:')))) {
+    if (changes.settings) {
+      refreshLocale(changes.settings.newValue?.locale);
+      await applyI18n();
+    }
     render();
   }
   // 后台重建/清除会话时同步界面——popup 打开瞬间的竞态靠这里兜住。
@@ -179,4 +184,6 @@ chrome.storage.onChanged.addListener((changes, area) => {
 bindSwitches();
 // 打开瞬间通知后台立即结算续上会话：焦点切换事件可能抢先清掉会话。
 chrome.runtime.sendMessage({ type: 'zhishi-popup-opened' }).catch(() => {});
+await initI18n();
+await applyI18n();
 render().then(startTicker);

@@ -287,6 +287,16 @@ try {
         await saveSettings({ topSitesRange: 'week' });
         await new Promise((r) => setTimeout(r, 400));
         out.weekRows = document.querySelectorAll('#topSites .top-name').length;
+        // GitHub 链接与图标
+        out.githubLink = document.querySelector('.github-link')?.href ?? '';
+        out.githubIcon = !!document.querySelector('.github-link svg');
+        // 语言切换：切到 English 后选项卡文案应变。
+        await saveSettings({ locale: 'en' });
+        await new Promise((r) => setTimeout(r, 500));
+        out.enTab = [...document.querySelectorAll('.tab')].map((el) => el.textContent).join('|');
+        await saveSettings({ locale: 'zh' });
+        await new Promise((r) => setTimeout(r, 500));
+        out.zhTab = [...document.querySelectorAll('.tab')].map((el) => el.textContent).join('|');
         return out;
       })()`);
       const chartOk =
@@ -298,11 +308,19 @@ try {
         chartChecks.topDefaultSeven &&
         chartChecks.hasMoreBtn &&
         chartChecks.topExpanded > 7;
+      const i18nOk =
+        chartChecks.githubLink === 'https://github.com/1parado/zhishi' &&
+        chartChecks.githubIcon &&
+        chartChecks.enTab === 'Overview|Site limits|Wellness|Timing & data' &&
+        chartChecks.zhTab === '概览|网站限额|健康提醒|计时与数据';
       console.log(
         `图表切换 → 折线 ${chartChecks.line} / 饼状 ${chartChecks.pie} / 柱状 ${chartChecks.bar}，热力新配色 ${chartChecks.heatColored} ${chartOk ? '✓' : '✗'}`
       );
       console.log(
         `排行范围 → 今日默认 ${chartChecks.dayRows} 条（第 7 截断 ${chartChecks.topDefaultSeven} / 有查看更多 ${chartChecks.hasMoreBtn} / 展开后 ${chartChecks.topExpanded} 条）/ 近 7 天 ${chartChecks.weekRows} 条 ${rangeOk ? '✓' : '✗'}`
+      );
+      console.log(
+        `i18n + GitHub → 链接 ${chartChecks.githubLink}，图标 ${chartChecks.githubIcon}，EN 标签「${chartChecks.enTab}」，ZH 标签「${chartChecks.zhTab}」 ${i18nOk ? '✓' : '✗'}`
       );
       await screenshot(c, 'overview-charts.png');
       await screenshot(c, 'limits-filter.png');

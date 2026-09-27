@@ -2,28 +2,32 @@
  * 右键菜单：
  *  - 「将 xx.com 加入网站限额」：打开仪表盘限额页并预填域名；
  *  - 「为 xx.com 开启/关闭视频心跳」：切换该站点的心跳白名单。
+ * 菜单文案随界面语言变化（settings.locale）。
  */
 
 import { classifyUrl } from '../lib/pure.js';
 import { getSettings, saveSettings } from '../lib/settings.js';
+import { initI18n, t } from '../lib/i18n.js';
 
 const MENU_ADD_LIMIT = 'zhishi-add-limit';
 const MENU_HEARTBEAT = 'zhishi-heartbeat';
 
-export function ensureMenu() {
+export async function ensureMenu() {
+  await initI18n(true);
   chrome.contextMenus.removeAll(() => {
     chrome.contextMenus.create(
-      { id: MENU_ADD_LIMIT, title: '将此网站加入网站限额', contexts: ['page'] },
+      { id: MENU_ADD_LIMIT, title: t('menuLimitSite'), contexts: ['page'] },
       () => void chrome.runtime.lastError
     );
     chrome.contextMenus.create(
-      { id: MENU_HEARTBEAT, title: '为此网站开启视频心跳', contexts: ['page'] },
+      { id: MENU_HEARTBEAT, title: t('menuHbSite'), contexts: ['page'] },
       () => void chrome.runtime.lastError
     );
   });
 }
 
 async function updateTitles(tab) {
+  await initI18n(true);
   const domain = classifyUrl(tab?.url);
   let heartbeatOn = false;
   if (domain) {
@@ -33,14 +37,17 @@ async function updateTitles(tab) {
   const update = (id, title) =>
     chrome.contextMenus.update(id, { title }, () => void chrome.runtime.lastError);
 
-  update(MENU_ADD_LIMIT, domain ? `将 ${domain} 加入网站限额` : '将此网站加入网站限额');
+  update(
+    MENU_ADD_LIMIT,
+    domain ? t('menuLimitDomain', { domain }) : t('menuLimitSite')
+  );
   update(
     MENU_HEARTBEAT,
     domain
       ? heartbeatOn
-        ? `关闭 ${domain} 的视频心跳`
-        : `为 ${domain} 开启视频心跳`
-      : '为此网站开启视频心跳'
+        ? t('menuHbOff', { domain })
+        : t('menuHbOn', { domain })
+      : t('menuHbSite')
   );
 }
 
