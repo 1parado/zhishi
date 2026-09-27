@@ -1,5 +1,6 @@
 import { dateKey, fmtDuration, shiftDateKey, sumSeconds } from '../lib/pure.js';
 import { applyI18n, initI18n, t } from '../lib/i18n.js';
+import { getSegmentsByDate } from '../lib/idb.js';
 import { getDay, getTimeline } from '../background/store.js';
 
 const $ = (id) => document.getElementById(id);
@@ -19,7 +20,11 @@ async function render() {
   await initI18n();
   await applyI18n();
 
-  const [timeline, day] = await Promise.all([getTimeline(currentDate), getDay(currentDate)]);
+  const [hourBuckets, day, segments] = await Promise.all([
+    getTimeline(currentDate),
+    getDay(currentDate),
+    getSegmentsByDate(currentDate).catch(() => []),
+  ]);
   const total = sumSeconds(day);
 
   $('tlDate').textContent = dateLabel(currentDate);
@@ -27,15 +32,36 @@ async function render() {
   $('nextDay').disabled = shiftDateKey(currentDate, 1) > dateKey();
   document.title = `${dateLabel(currentDate)} · ${t('timelineTitle')}`;
 
-  renderHours(timeline);
-  renderSites(day);
-}
-
-function renderHours(timeline) {
   const wrap = $('timeline');
   wrap.textContent = '';
 
-  // 汇总所有出现过的域名，按首次出现顺序循环分配色板。
+  if (segments.length) {
+    renderSegments(segments, wrap);
+  } else {
+    // 升级前（或 IDB 不可用）的旧数据：退回小时桶近似渲染。
+    renderHours(hourBuckets, wrap);
+    if (Object.keys(hourBuckets).length) {
+      const note = document.createElement('p');
+      note.className = 'muted tl-fallback';
+      note.textContent = t('tlFallback');
+      wrap.append(note);
+    }
+  }
+  renderSites(day);
+}
+
+function dayStartMs(key) {
+  const [y, m, d] = key.split('-').map(Number);
+  return new Date(y, m - 1, d).getTime();
+}
+
+function fmtClock(ms) {
+  const d = new Date(ms);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+/** 精确模式：每个结算分段就是一个真实甘特块。 */
+function renderSegments(segments, wrap) {
   const colorMap = new Map();
   let colorCursor = 0;
   const colorOf = (domain) => {
@@ -46,7 +72,37 @@ function renderHours(timeline) {
     return colorMap.get(domain);
   };
 
-  // 把每个小时桶内的域名按顺序铺进 24 小时色带（桶内按用时降序排列）。
+  const startMs = dayStartMs(currentDate);
+  const DAY_MS = 86400000;
+  const strip = document.createElement('div');
+  strip.className = 'tl-strip';
+  for (const seg of segments) {
+    const el = document.createElement('span');
+    el.className = 'tl-seg';
+    el.dataset.color = colorOf(seg.domain);
+    el.style.left = `${((seg.start - startMs) / DAY_MS) * 100}%`;
+    el.style.width = `${Math.max(((seg.end - seg.start) / DAY_MS) * 100, 0.15)}%`;
+    el.title = `${seg.domain} · ${fmtClock(seg.start)} – ${fmtClock(seg.end)} · ${fmtDuration(
+      Math.round((seg.end - seg.start) / 1000)
+    )}`;
+    strip.append(el);
+  }
+  wrap.append(strip);
+  appendAxis(wrap);
+}
+
+/** 近似模式（旧数据回退）：把每个小时桶内的域名按顺序铺进 24 小时色带。 */
+function renderHours(timeline, wrap) {
+  const colorMap = new Map();
+  let colorCursor = 0;
+  const colorOf = (domain) => {
+    if (!colorMap.has(domain)) {
+      colorMap.set(domain, String((colorCursor % 7) + 1));
+      colorCursor += 1;
+    }
+    return colorMap.get(domain);
+  };
+
   const segs = [];
   const hours = Object.keys(timeline).sort();
   for (const hour of hours) {
@@ -81,7 +137,10 @@ function renderHours(timeline) {
     strip.append(el);
   }
   wrap.append(strip);
+  appendAxis(wrap);
+}
 
+function appendAxis(wrap) {
   const axis = document.createElement('div');
   axis.className = 'tl-axis';
   for (let i = 0; i <= 6; i++) {

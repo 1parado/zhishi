@@ -8,6 +8,7 @@
 
 import { classifyUrl, capChunk, dateKey, inTimeWindow } from '../lib/pure.js';
 import { getSettings } from '../lib/settings.js';
+import { addSegmentRows } from '../lib/idb.js';
 import { addSeconds, getDay, getGrants } from './store.js';
 
 const SESSION_KEY = 'session';
@@ -69,7 +70,34 @@ export async function tick(reason = 'event') {
 }
 
 /**
- * 把上一段会话记入当日聚合。
+ * 把一次结算的计入区间 [startMs, endMs) 按分钟边界拆成真实分段写入 IDB。
+ * 时间线页据此画出零近似的甘特块；失败静默（聚合数据不受影响）。
+ */
+async function writeSegments(domain, startMs, endMs) {
+  try {
+    const rows = [];
+    let cursor = startMs;
+    while (cursor < endMs) {
+      const d = new Date(cursor);
+      const minuteEnd = new Date(
+        d.getFullYear(),
+        d.getMonth(),
+        d.getDate(),
+        d.getHours(),
+        d.getMinutes() + 1
+      ).getTime();
+      const sliceEnd = Math.min(minuteEnd, endMs);
+      rows.push({ date: dateKey(d), start: cursor, end: sliceEnd, domain });
+      cursor = sliceEnd;
+    }
+    await addSegmentRows(rows);
+  } catch {
+    // IDB 不可用时跳过：聚合数据仍然完整，时间线退回小时桶近似。
+  }
+}
+
+/**
+ * 把上一段会话记入当日聚合与分段库。
  * 「锁定」一律暂停；「闲置」时若该站点有心跳（正在播放音视频），视为人在，继续计时。
  */
 async function settle(idleState, now) {
@@ -81,6 +109,9 @@ async function settle(idleState, now) {
 
   const seconds = Math.floor(capChunk(now - session.startedAt, MAX_CHUNK_MS) / 1000);
   if (seconds < 1) return 0;
+
+  // 只把「计入」的区间写成真实分段（跨分钟自动拆分）。
+  await writeSegments(session.domain, session.startedAt, session.startedAt + seconds * 1000);
   await addSeconds(session.domain, seconds);
   return seconds;
 }

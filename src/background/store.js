@@ -4,6 +4,7 @@
  */
 
 import { dateKey } from '../lib/pure.js';
+import { clearSegments } from '../lib/idb.js';
 
 export async function addSeconds(domain, seconds, when = new Date()) {
   const dateStr = dateKey(when);
@@ -76,4 +77,5 @@ export async function clearAllData() {
     (k) => k.startsWith('d:') || k.startsWith('h:') || k === GRANTS_KEY
   );
   if (keys.length) await chrome.storage.local.remove(keys);
+  await clearSegments(); // IDB 中的浏览分段一并清除
 }

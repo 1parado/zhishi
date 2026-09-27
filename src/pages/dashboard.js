@@ -125,6 +125,9 @@ function svgEl(tag, attrs = {}) {
   return el;
 }
 
+// 饼状图七天各一色：chart-1..5 + 两个淡化变体循环。
+const DAY_COLORS = ['1', '2', '3', '4', '5', '6', '7'];
+
 function renderWeekChart(week, chartType) {
   const wrap = $('weekChart');
   wrap.textContent = '';
@@ -143,7 +146,7 @@ function renderWeekBar(week, wrap) {
     col.className = 'week-col' + (day.key === todayKey ? ' is-today' : '');
 
     const bar = document.createElement('div');
-    bar.className = `week-bar u-level-${usageLevel(day.seconds)}`;
+    bar.className = 'week-bar';
     bar.style.height = `${Math.max((day.seconds / max) * 100, 1)}%`;
     bar.title = `${day.key} · ${fmtDuration(day.seconds)}`;
 
@@ -176,29 +179,11 @@ function renderWeekLine(week, wrap) {
       class: 'week-area',
       points: `${pts[0][0]},${H - bottom} ${pts.map((p) => p.join(',')).join(' ')} ${pts[6][0]},${H - bottom}`,
     }),
-    svgEl('line', { class: 'week-baseline', x1: 4, y1: H - bottom, x2: W - 4, y2: H - bottom })
+    svgEl('line', { class: 'week-baseline', x1: 4, y1: H - bottom, x2: W - 4, y2: H - bottom }),
+    svgEl('polyline', { class: 'week-line', points: pts.map((p) => p.join(',')).join(' ') })
   );
-  // 相邻两天之间的线段按「后一天」的用量档位着色。
-  for (let i = 1; i < pts.length; i++) {
-    svg.append(
-      svgEl('line', {
-        class: 'week-line',
-        'data-level': String(usageLevel(week[i].seconds)),
-        x1: pts[i - 1][0],
-        y1: pts[i - 1][1],
-        x2: pts[i][0],
-        y2: pts[i][1],
-      })
-    );
-  }
   for (const [i, p] of pts.entries()) {
-    const dot = svgEl('circle', {
-      class: 'week-dot',
-      'data-level': String(usageLevel(week[i].seconds)),
-      cx: p[0],
-      cy: p[1],
-      r: 3.5,
-    });
+    const dot = svgEl('circle', { class: 'week-dot', cx: p[0], cy: p[1], r: 3.5 });
     const title = svgEl('title');
     title.textContent = `${week[i].key} · ${fmtDuration(week[i].seconds)}`;
     dot.append(title);
@@ -232,7 +217,7 @@ function renderWeekPie(week, wrap) {
     if (frac > 0) {
       const seg = svgEl('circle', {
         class: 'pie-seg',
-        'data-level': String(usageLevel(day.seconds)),
+        'data-color': DAY_COLORS[i],
         cx: 50,
         cy: 50,
         r: 38,
@@ -251,7 +236,7 @@ function renderWeekPie(week, wrap) {
     item.className = 'legend-item';
     const dot = document.createElement('span');
     dot.className = 'pie-dot';
-    dot.dataset.level = String(usageLevel(day.seconds));
+    dot.dataset.color = DAY_COLORS[i];
     item.append(dot, document.createTextNode(`${shortDate(day.key)} ${fmtDuration(day.seconds)}`));
     legend.append(item);
   }
@@ -288,13 +273,29 @@ function appendWeekLabels(wrap, week, todayKey) {
 function renderHeatmap(days, todayKey) {
   const grid = $('heatmap');
   const months = $('heatMonths');
+  const weekdays = $('heatWeekdays');
   grid.textContent = '';
   months.textContent = '';
+  weekdays.textContent = '';
   heatCellData = {};
+
+  const locale = document.documentElement.lang === 'en' ? 'en-US' : 'zh-CN';
+
+  // 左侧星期标签：行序固定为周一 → 周日（与格子按星期显式定位一致）。
+  for (let r = 0; r < 7; r++) {
+    const label = new Intl.DateTimeFormat(locale, { weekday: 'short' }).format(
+      new Date(2026, 8, 21 + r) // 2026-09-21 是周一
+    );
+    const span = document.createElement('span');
+    span.className = 'heat-weekday';
+    span.textContent = label;
+    weekdays.append(span);
+  }
 
   // 对齐到周：以今天所在周的周日为终点，向前铺 53 周。
   const today = new Date(todayKey + 'T00:00:00');
   const end = shiftDateKey(todayKey, today.getDay() === 6 ? 0 : 6 - today.getDay());
+  const endDate = new Date(end + 'T00:00:00');
   const cells = [];
   let yearTotal = 0;
   for (let i = 0; i < 371; i++) {
@@ -306,20 +307,21 @@ function renderHeatmap(days, todayKey) {
     cells.push({ key, seconds, top: sites.slice(0, 3) });
   }
 
-  // 生成格子；同一列是同一周（列宽 15px = 12px 格 + 3px 间距）。
-  const monthLabels = [];
-  let lastMonth = -1;
-  cells.forEach((cell, idx) => {
-    const col = Math.floor(idx / 7);
-    const month = Number(cell.key.slice(5, 7));
-    if (month !== lastMonth) {
-      lastMonth = month;
-      const locale = document.documentElement.lang === 'en' ? 'en-US' : 'zh-CN';
-      const label = new Intl.DateTimeFormat(locale, { month: 'short' }).format(
-        new Date(cell.key + 'T00:00:00')
-      );
-      monthLabels.push({ col, label });
+  // 格子按「列 = 周、行 = 星期」显式定位；同一列是同一周，行序周一 → 周日。
+  const monthCols = new Map(); // 'YYYY-M' → 该月最早一天的列位与日期（标签对齐用）
+  cells.forEach((cell) => {
+    const cellDate = new Date(cell.key + 'T00:00:00');
+    const diffDays = Math.round((endDate - cellDate) / 86400000);
+    const colFromEnd = Math.floor(diffDays / 7);
+    const row = (cellDate.getDay() + 6) % 7; // 0 = 周一
+
+    const monthKey = `${cellDate.getFullYear()}-${cellDate.getMonth()}`;
+    const known = monthCols.get(monthKey);
+    // 反向遍历中最先遇到的是月末；标签要对齐到月首，保留更大的列位。
+    if (!known || colFromEnd > known.colFromEnd) {
+      monthCols.set(monthKey, { colFromEnd, date: cellDate });
     }
+
     heatCellData[cell.key] = { seconds: cell.seconds, top: cell.top };
 
     const el = document.createElement('span');
@@ -327,20 +329,25 @@ function renderHeatmap(days, todayKey) {
     el.dataset.level = String(usageLevel(cell.seconds));
     el.dataset.date = cell.key;
     if (cell.seconds > 0) el.classList.add('has-data');
+    el.style.gridColumn = String(53 - colFromEnd); // 最右列 = 当前周
+    el.style.gridRow = String(row + 1);
     grid.append(el);
   });
 
   // 月份标签贴在网格底部、与列对齐；相邻标签过近时跳过。
   const colWidth = 15;
   let prevLeft = -100;
-  for (const { col, label } of monthLabels) {
-    const left = col * colWidth;
+  const sortedMonths = [...monthCols.values()].sort(
+    (a, b) => b.colFromEnd - a.colFromEnd // left 随 colFromEnd 递减，先排最左
+  );
+  for (const { colFromEnd, date } of sortedMonths) {
+    const left = (52 - colFromEnd) * colWidth;
     if (left - prevLeft < 36) continue;
     prevLeft = left;
     const span = document.createElement('span');
     span.className = 'heat-month';
     span.style.left = `${left + 1}px`;
-    span.textContent = label;
+    span.textContent = new Intl.DateTimeFormat(locale, { month: 'short' }).format(date);
     months.append(span);
   }
 

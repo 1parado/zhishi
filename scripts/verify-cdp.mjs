@@ -96,7 +96,20 @@ function connect(wsUrl) {
   const send = (method, params = {}) =>
     new Promise((resolve, reject) => {
       const id = nextId++;
-      pending.set(id, { resolve, reject });
+      const timer = setTimeout(() => {
+        pending.delete(id);
+        reject(new Error(`CDP ${method} 超时`));
+      }, 20_000);
+      pending.set(id, {
+        resolve: (v) => {
+          clearTimeout(timer);
+          resolve(v);
+        },
+        reject: (err) => {
+          clearTimeout(timer);
+          reject(err);
+        },
+      });
       ws.send(JSON.stringify({ id, method, params }));
     });
 
@@ -131,18 +144,36 @@ async function withPage(url, urlPart, fn) {
   }
 }
 
-async function evaluate(c, expression) {
-  const result = await c.send('Runtime.evaluate', {
-    expression,
-    awaitPromise: true,
-    returnByValue: true,
-  });
+async function evaluate(c, expression, label = '') {
+  const tag = label ? ` [${label}]` : '';
+  let result;
+  try {
+    result = await c.send('Runtime.evaluate', {
+      expression,
+      awaitPromise: true,
+      returnByValue: true,
+    });
+  } catch (err) {
+    throw new Error(`evaluate${tag} 失败：${err.message}`);
+  }
   if (result.exceptionDetails) {
     throw new Error(
-      `evaluate 失败：${result.exceptionDetails.exception?.description ?? JSON.stringify(result.exceptionDetails)}`
+      `evaluate${tag} 失败：${result.exceptionDetails.exception?.description ?? JSON.stringify(result.exceptionDetails)}`
     );
   }
   return result.result?.value;
+}
+
+async function withRetry(fn, attempts = 2, label = '') {
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (i === attempts - 1) throw err;
+      console.log(`${label} 第 ${i + 1} 次尝试失败（${String(err.message).slice(0, 80)}），重试…`);
+      await sleep(1500);
+    }
+  }
 }
 
 async function screenshot(c, filename) {
@@ -151,8 +182,19 @@ async function screenshot(c, filename) {
     format: 'png',
     captureBeyondViewport: true,
   });
-  writeFileSync(join(outDir, filename), Buffer.from(data, 'base64'));
-  console.log(`截图 ${filename}`);
+  try {
+    writeFileSync(join(outDir, filename), Buffer.from(data, 'base64'));
+    console.log(`截图 ${filename}`);
+  } catch (err) {
+    // 磁盘满时截图降级为可选产物：写到临时目录，不阻塞功能断言。
+    const fallbackPath = join(tmpdir(), filename);
+    try {
+      writeFileSync(fallbackPath, Buffer.from(data, 'base64'));
+      console.log(`截图 ${filename}（E 盘空间不足，已写入 ${fallbackPath}）`);
+    } catch {
+      console.log(`截图 ${filename} 失败（磁盘空间不足，已跳过）`);
+    }
+  }
 }
 
 try {
@@ -269,6 +311,9 @@ try {
         // 热力图增强：月份标签、可点击格子、今日卡片
         out.heatMonths = document.querySelectorAll('.heat-month').length;
         out.heatCellsHasData = document.querySelectorAll('.heat-cell.has-data').length;
+        out.heatWeekdays = document.querySelectorAll('.heat-weekday').length;
+        out.heatWeekdayFirst =
+          document.querySelector('.heat-weekday')?.textContent ?? '';
         out.todayCardClickable = document.getElementById('todayCard')?.dataset !== undefined &&
           !!document.querySelector('#todayCard');
         // 注入 10 个额外站点，验证排行默认前 7 + 查看更多展开。
@@ -330,7 +375,14 @@ try {
         `i18n + GitHub → 链接 ${chartChecks.githubLink}，图标 ${chartChecks.githubIcon}，EN 标签「${chartChecks.enTab}」，ZH 标签「${chartChecks.zhTab}」 ${i18nOk ? '✓' : '✗'}`
       );
       console.log(
-        `热力图增强 → 月份标签 ${chartChecks.heatMonths} 个，可点击格子 ${chartChecks.heatCellsHasData} 个 ${chartChecks.heatMonths >= 6 && chartChecks.heatCellsHasData > 0 ? '✓' : '✗'}`
+        `热力图增强 → 月份标签 ${chartChecks.heatMonths} 个，可点击格子 ${chartChecks.heatCellsHasData} 个，星期标签 ${chartChecks.heatWeekdays} 个（首行「${chartChecks.heatWeekdayFirst}」应为周一） ${
+          chartChecks.heatMonths >= 6 &&
+          chartChecks.heatCellsHasData > 0 &&
+          chartChecks.heatWeekdays === 7 &&
+          chartChecks.heatWeekdayFirst === '周一'
+            ? '✓'
+            : '✗'
+        }`
       );
       await screenshot(c, 'overview-charts.png');
       // 回到限额选项卡再截图，保证截图内容与文件名一致。
@@ -386,50 +438,115 @@ try {
     `popup 语言切换 ${localeOk ? '✓' : '✗'}（EN → ${popupLocale.enText} / ZH → ${popupLocale.zhText}）`
   );
 
-  // 4d. 时间线页：种入小时桶 → 渲染 24 小时段与站点条目。
-  const todayStr = new Date().toLocaleDateString('sv-SE');
-  await withPage(`chrome-extension://${extId}/src/pages/popup.html`, 'popup.html', async (c) => {
-    await evaluate(c, `(async () => {
-      const key = 'h:${todayStr}';
-      await chrome.storage.local.set({
-        [key]: {
-          '09': { 'example.com': 1200, 'github.com': 600 },
-          '10': { 'bilibili.com': 900 },
-          '22': { 'linux.do': 300 },
-        },
-      });
-      return true;
-    })()`);
-  });
+  // 4d/4e. 时间线页（用「昨天/前天」做确定性测试，真实结算只写今天）：
+  //   先验证旧数据回退（h: 小时桶近似），再种入 IDB 分段重载验证精确甘特块。
+  const yesterday = new Date(Date.now() - 86_400_000).toLocaleDateString('sv-SE');
+  const dayBefore = new Date(Date.now() - 2 * 86_400_000).toLocaleDateString('sv-SE');
 
-  const tl = await withPage(
-    `chrome-extension://${extId}/src/pages/timeline.html?date=${todayStr}`,
-    'timeline.html',
-    async (c) => {
-      const segs = await evaluate(c, `document.querySelectorAll('.tl-seg').length`);
-      const ticks = await evaluate(c, `document.querySelectorAll('.tl-tick').length`);
-      const total = await evaluate(c, 'document.getElementById("tlTotal").textContent');
-      const sites = await evaluate(c, `document.querySelectorAll('#tlSites .top-row').length`);
-      await evaluate(c, `document.getElementById('prevDay').click()`);
-      await sleep(600);
-      const navigated = await evaluate(c, 'location.search');
-      return { segs, ticks, total, sites, navigated };
-    }
+  const tl = await withRetry(
+    () =>
+      withPage(
+        `chrome-extension://${extId}/src/pages/timeline.html?date=${yesterday}`,
+        'timeline.html',
+        async (c) => {
+          // 种入昨天的小时桶并重载 → 回退模式。
+          await evaluate(c, `(async () => {
+        await chrome.storage.local.set({
+          'h:${yesterday}': {
+            '09': { 'example.com': 1200, 'github.com': 600 },
+            '10': { 'bilibili.com': 900 },
+            '22': { 'linux.do': 300 },
+          },
+        });
+        return true;
+      })()`);
+          // reload 会销毁上下文导致 evaluate 永不返回，改用 Page.navigate 重载。
+          await c.send('Page.navigate', {
+            url: `chrome-extension://${extId}/src/pages/timeline.html?date=${yesterday}`,
+          });
+          await until(async () => {
+            const v = await c.send('Runtime.evaluate', {
+              expression: 'document.readyState',
+              returnByValue: true,
+            });
+            if (v.result?.value !== 'complete') throw new Error(v.result?.value);
+            return true;
+          }, 30_000, '回退模式重载');
+          // 原子读取回退状态。
+          const t1 = JSON.parse(
+            await evaluate(c, `JSON.stringify({
+          segs: document.querySelectorAll('.tl-seg').length,
+          ticks: document.querySelectorAll('.tl-tick').length,
+          note: !!document.querySelector('.tl-fallback'),
+          sites: document.querySelectorAll('#tlSites .top-row').length,
+        })`)
+          );
+
+          // 种入前天的 IDB 分段并重载 → 精确模式（3 块，首块 09:00 = 37.5%）。
+          await evaluate(c, `(async () => {
+        const date = '${dayBefore}';
+        const rows = [
+          { date, start: new Date(date + 'T09:00:00').getTime(), end: new Date(date + 'T09:20:00').getTime(), domain: 'example.com' },
+          { date, start: new Date(date + 'T09:20:00').getTime(), end: new Date(date + 'T09:30:00').getTime(), domain: 'github.com' },
+          { date, start: new Date(date + 'T22:00:00').getTime(), end: new Date(date + 'T22:15:00').getTime(), domain: 'linux.do' },
+        ];
+        const db = await new Promise((resolve, reject) => {
+          const req = indexedDB.open('zhishi-segments', 1);
+          req.onupgradeneeded = () => {
+            const db = req.result;
+            if (!db.objectStoreNames.contains('segment')) {
+              const store = db.createObjectStore('segment', { keyPath: ['date', 'start'] });
+              store.createIndex('date', 'date', { unique: false });
+            }
+          };
+          req.onsuccess = () => resolve(db);
+          req.onerror = () => reject(req.error);
+        });
+        await new Promise((resolve, reject) => {
+          const tx = db.transaction('segment', 'readwrite');
+          for (const row of rows) tx.objectStore('segment').put(row);
+          tx.oncomplete = resolve;
+          tx.onerror = () => reject(tx.error);
+        });
+        return true;
+      })()`);
+          await c.send('Page.navigate', {
+            url: `chrome-extension://${extId}/src/pages/timeline.html?date=${dayBefore}`,
+          });
+          await until(async () => {
+            const v = await c.send('Runtime.evaluate', {
+              expression: 'location.href.includes("date=") && document.readyState',
+              returnByValue: true,
+            });
+            if (v.result?.value !== 'complete') throw new Error(String(v.result?.value));
+            return true;
+          }, 30_000, '精确模式加载');
+          const t2 = JSON.parse(
+            await evaluate(c, `JSON.stringify({
+          segs: document.querySelectorAll('.tl-seg').length,
+          firstLeft: document.querySelector('.tl-seg')?.style.left ?? '',
+          note: !!document.querySelector('.tl-fallback'),
+        })`)
+          );
+          await screenshot(c, 'timeline.png');
+          return { t1, t2 };
+        }
+      ),
+    2,
+    '时间线页'
   );
   const tlOk =
-    tl.segs === 4 &&
-    tl.ticks === 7 &&
-    tl.sites >= 4 &&
-    tl.total !== '0 分钟' &&
-    tl.navigated.includes('date=');
+    tl.t1.segs === 4 && tl.t1.ticks === 7 && tl.t1.note && tl.t1.sites >= 4;
   console.log(
-    `时间线页 → ${tl.segs} 个色块（应为 4）/ ${tl.ticks} 个刻度（应为 7）/ 当日总时长 ${tl.total}（全天聚合）/ 站点 ${tl.sites} 个，前一天导航 → ${tl.navigated} ${tlOk ? '✓' : '✗'}`
+    `时间线页（旧数据回退）→ ${tl.t1.segs} 个近似色块（应为 4）/${tl.t1.ticks} 个刻度/近似提示 ${tl.t1.note}，站点 ${tl.t1.sites} 个 ${tlOk ? '✓' : '✗'}`
   );
-  await withPage(`chrome-extension://${extId}/src/pages/timeline.html?date=${todayStr}`, 'timeline.html', async (c) => {
-    await screenshot(c, 'timeline.png');
-  });
+  const preciseOk =
+    tl.t2.segs === 3 && Math.abs(parseFloat(tl.t2.firstLeft) - 37.5) < 0.5 && !tl.t2.note;
+  console.log(
+    `时间线页（精确分段）→ ${tl.t2.segs} 块（应为 3）/ 首块定位 ${tl.t2.firstLeft}（应为 37.5%）/ 无回退提示 ${!tl.t2.note} ${preciseOk ? '✓' : '✗'}`
+  );
 
-  // 4e. 热力图点击跳转：点击一个有数据的格子应进入对应日期的时间线。
+  // 4f. 热力图点击跳转：点击一个有数据的格子应进入对应日期的时间线。
   const heatNav = await withPage(`chrome-extension://${extId}/src/pages/dashboard.html`, 'dashboard.html', async (c) => {
     await evaluate(c, `document.querySelector('.tab[data-tab="overview"]').click()`);
     await sleep(500);

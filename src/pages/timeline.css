@@ -113,6 +113,11 @@
   transform: translateX(-100%);
 }
 
+.tl-fallback {
+  font-size: 12px;
+  margin: 8px 0 0;
+}
+
 @media (max-width: 640px) {
   .tl-site {
     grid-template-columns: 1fr auto;

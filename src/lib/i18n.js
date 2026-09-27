@@ -134,7 +134,8 @@ const MESSAGES = {
     timelineToday: '今天',
     totalLabel: '当日总时长',
     tlAxisTitle: '时间轴',
-    tlAxisHint: '每个色块代表一段网站使用，悬停查看详情。',
+    tlAxisHint: '每个色块是一段真实浏览记录，悬停查看起止时间。',
+    tlFallback: '该日为小时级近似数据（升级前的记录）。',
     timelineEmpty: '这一天还没有记录。',
     backToDash: '返回仪表盘',
 
@@ -273,7 +274,8 @@ const MESSAGES = {
     timelineToday: 'Today',
     totalLabel: 'Total',
     tlAxisTitle: 'Timeline',
-    tlAxisHint: 'Each block is a browsing segment — hover for details.',
+    tlAxisHint: 'Each block is a real browsing segment — hover for start and end times.',
+    tlFallback: 'Hour-level approximation (recorded before this upgrade).',
     timelineEmpty: 'No records for this day.',
     backToDash: 'Back to dashboard',
 
