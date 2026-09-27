@@ -1,0 +1,258 @@
+/* 知时宣传页。排版语言参考论述文式页面：窄栏、日期、图文穿插、常数表。
+   色彩令牌与扩展本体一致（@paradox/ui 体系），点缀色只用图表蓝。 */
+
+:root {
+  --background: hsl(0 0% 100%);
+  --foreground: hsl(222.2 84% 4.9%);
+  --muted-foreground: hsl(215.4 16.3% 46.9%);
+  --border: hsl(214.3 31.8% 91.4%);
+  --accent: hsl(210 40% 96.1%);
+  --primary: hsl(222.2 47.4% 11.2%);
+  --primary-foreground: hsl(210 40% 98%);
+  --chart-1: hsl(221 83% 53%);
+  --success: hsl(142.1 76.2% 36.3%);
+  --warning: hsl(37.7 92.1% 50.2%);
+  --destructive: hsl(0 84.2% 60.2%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: system-ui, -apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+  font-size: 16.5px;
+  line-height: 1.9;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- 顶栏 ---------- */
+
+.site-head {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 28px 24px 0;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.brand {
+  font-weight: 700;
+  font-size: 17px;
+  letter-spacing: 0.02em;
+}
+
+.brand-sub {
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+
+.head-link {
+  margin-left: auto;
+  font-size: 13px;
+  color: var(--muted-foreground);
+  text-decoration: none;
+}
+
+.head-link:hover {
+  color: var(--foreground);
+}
+
+/* ---------- 正文 ---------- */
+
+main {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 0 24px 40px;
+}
+
+article {
+  border-top: 1px solid var(--border);
+  margin-top: 24px;
+  padding-top: 40px;
+}
+
+.date {
+  font-size: 13px;
+  color: var(--muted-foreground);
+  margin: 0 0 6px;
+}
+
+h1 {
+  font-size: 30px;
+  line-height: 1.4;
+  font-weight: 700;
+  margin: 0 0 28px;
+  letter-spacing: 0.01em;
+}
+
+h2 {
+  font-size: 20px;
+  font-weight: 650;
+  margin: 56px 0 16px;
+}
+
+p {
+  margin: 0 0 18px;
+}
+
+.lede {
+  font-size: 17.5px;
+  color: hsl(222.2 47.4% 20%);
+}
+
+a {
+  color: var(--chart-1);
+}
+
+code {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.86em;
+  background: var(--accent);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+
+/* 标题下的一排热力色块：全页唯一的装饰，呼应年度热力图。 */
+
+.heat-sign {
+  display: flex;
+  gap: 6px;
+  margin: 4px 0 8px;
+}
+
+.heat-sign span {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+.heat-sign span:nth-child(1) { background: var(--accent); }
+.heat-sign span:nth-child(2) { background: var(--success); }
+.heat-sign span:nth-child(3) { background: var(--warning); }
+.heat-sign span:nth-child(4) { background: color-mix(in srgb, var(--warning) 45%, var(--destructive)); }
+.heat-sign span:nth-child(5) { background: var(--destructive); }
+
+/* ---------- 图 ---------- */
+
+figure {
+  margin: 28px 0 36px;
+  padding: 0;
+}
+
+figure img {
+  display: block;
+  width: 100%;
+  max-width: 860px;
+  margin: 0 auto;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--background);
+}
+
+/* 弹窗截图较窄，保持原始比例，不强行放大 */
+figure img[src='assets/popup.png'],
+figure img[src='assets/context-menu.png'] {
+  max-width: 460px;
+}
+
+figcaption {
+  text-align: center;
+  font-size: 13px;
+  color: var(--muted-foreground);
+  margin-top: 10px;
+}
+
+.will-fade {
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.5s ease-out, transform 0.5s ease-out;
+}
+
+.faded {
+  opacity: 1;
+  transform: none;
+}
+
+/* ---------- 常数表 ---------- */
+
+.constants {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0 0 20px;
+  font-size: 14.5px;
+}
+
+.constants td {
+  border-top: 1px solid var(--border);
+  padding: 10px 0;
+  vertical-align: top;
+}
+
+.constants td:first-child {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 13.5px;
+  color: var(--muted-foreground);
+  width: 11em;
+  padding-right: 16px;
+  white-space: nowrap;
+}
+
+.constants tr:last-child td {
+  border-bottom: 1px solid var(--border);
+}
+
+/* ---------- 安装步骤 ---------- */
+
+.install {
+  padding-left: 20px;
+  margin: 0 0 18px;
+}
+
+.install li {
+  margin-bottom: 8px;
+}
+
+/* ---------- 页脚 ---------- */
+
+.site-foot {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 24px 24px 48px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted-foreground);
+  flex-wrap: wrap;
+}
+
+.site-foot a {
+  color: inherit;
+}
+
+@media (max-width: 720px) {
+  body {
+    font-size: 16px;
+  }
+
+  h1 {
+    font-size: 26px;
+  }
+
+  figure img {
+    max-width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .will-fade {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}

@@ -96,6 +96,12 @@ node scripts/verify-cdp.mjs       # 端到端验证（需本机 Edge）
 
 仪表盘控制台里有 `window.__seedDemo()`，可灌入 140 天演示数据，用于开发预览。
 
+## 宣传页（GitHub Pages）
+
+`docs/` 内是项目宣传页（`index.html` + `styles.css` + `assets/` 截图），排版参考论述文式页面，内容包含功能介绍与全部界面截图。
+
+部署方式：推送代码到 GitHub 后，在仓库 **Settings → Pages → Source** 选择 **GitHub Actions**，工作流（`.github/workflows/pages.yml`）会自动把 `docs/` 部署到 `https://<用户名>.github.io/<仓库名>/`。本地预览：直接用浏览器打开 `docs/index.html`。
+
 ## 已知限制
 
 - 纯阅读（60 秒无键鼠输入且无音视频播放）会被视为闲置暂停计时；音视频播放场景已由视频心跳覆盖
