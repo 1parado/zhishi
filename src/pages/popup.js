@@ -5,9 +5,10 @@ import { currentSession } from '../background/tracker.js';
 
 const $ = (id) => document.getElementById(id);
 
-// 实时秒表缓存：每秒用「今日已落盘 + 未落盘会话」推算当前站点今日累计。
+// 实时秒表缓存：每秒用「今日已落盘 + 未落盘会话」推算当前站点与今日总量。
 let cachedSession = null;
 let cachedToday = null;
+let cachedTodayTotal = 0;
 let liveTimer = null;
 
 async function render() {
@@ -18,6 +19,7 @@ async function render() {
   ]);
   cachedSession = session;
   cachedToday = today;
+  cachedTodayTotal = sumSeconds(today);
   renderStatus(session, today);
   renderToday(today, settings);
   renderSites(today);
@@ -34,13 +36,20 @@ function renderStatus(session, today) {
   }
 }
 
-// 当前站点今日用时每秒跳动，让「正在记录」变得可感知。
+// 当前站点与今日总量每秒跳动，让「正在记录」变得可感知。
 function startTicker() {
   if (liveTimer) return;
   liveTimer = setInterval(() => {
-    if (cachedSession?.domain && cachedToday) {
-      renderStatus(cachedSession, cachedToday);
-    }
+    const session = cachedSession;
+    if (!session?.domain || !cachedToday) return;
+    const elapsed = (Date.now() - session.startedAt) / 1000;
+
+    const liveSite = (cachedToday[session.domain] || 0) + elapsed;
+    $('status').textContent = `正在记录：${session.domain} · 今日 ${fmtDuration(liveSite)}`;
+
+    const liveTotal = fmtDuration(cachedTodayTotal + elapsed);
+    $('todayTotal').textContent = liveTotal;
+    $('todayTotalPlain').textContent = liveTotal;
   }, 1000);
 }
 

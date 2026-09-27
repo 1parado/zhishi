@@ -86,11 +86,29 @@ async function settle(idleState, now) {
 }
 
 /**
+ * 扩展自己的 popup 是否打开。popup 会夺走浏览器窗口焦点，
+ * 但它开着就意味着用户正停留在浏览器里——此时不应按「不在前台」暂停计时。
+ * （用户切去其他应用时 popup 会自动关闭，所以不会误判。）
+ */
+export async function isPopupOpen() {
+  try {
+    if (chrome.runtime.getContexts) {
+      const contexts = await chrome.runtime.getContexts({ contextTypes: ['POPUP'] });
+      return contexts.length > 0;
+    }
+    return chrome.extension.getViews({ type: 'popup' }).length > 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * 依据前台窗口的活跃标签页开启新会话。
  * 拦截判定不受闲置影响（锁屏除外）；只有「人在」（活跃或有心跳）才开新会话。
  */
 async function restartSession(idleState) {
   if (idleState === 'locked') return;
+  const popupOpen = await isPopupOpen();
   const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
   const tab = tabs[0];
   if (!tab || typeof tab.windowId !== 'number') return;
@@ -101,7 +119,7 @@ async function restartSession(idleState) {
   } catch {
     return;
   }
-  if (!win.focused) return;
+  if (!win.focused && !popupOpen) return;
 
   const domain = classifyUrl(tab.url);
   if (!domain) return;

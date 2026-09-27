@@ -6,7 +6,7 @@
 import { ensureAlarms } from './health.js';
 import { ensureMenu } from './menu.js';
 import { updateBadge } from './badge.js';
-import { getHeartbeatState, noteHeartbeat, tick } from './tracker.js';
+import { getHeartbeatState, isPopupOpen, noteHeartbeat, tick } from './tracker.js';
 
 chrome.idle.setDetectionInterval(60);
 
@@ -52,12 +52,17 @@ chrome.storage.onChanged.addListener((changes, area) => {
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg && msg.type === 'ping') {
     sendResponse({ ok: true, ts: Date.now() });
+    return false;
   }
   if (msg && msg.type === 'zhishi-heartbeat') {
     noteHeartbeat(sender);
+    return false;
   }
   if (msg && msg.type === 'debug-heartbeats') {
-    sendResponse({ heartbeats: getHeartbeatState() });
+    isPopupOpen().then((popupOpen) =>
+      sendResponse({ heartbeats: getHeartbeatState(), popupOpen })
+    );
+    return true; // 异步响应
   }
   return false;
 });
