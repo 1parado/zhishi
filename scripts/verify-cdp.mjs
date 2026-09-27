@@ -255,12 +255,36 @@ try {
     }
   );
 
-  // 4. popup 截图 + 后台存活探测。
+  // 4. popup 截图 + 后台存活探测 + 实时秒表检查。
   await withPage(`chrome-extension://${extId}/src/pages/popup.html`, 'popup.html', async (c) => {
     const pong = await evaluate(c, 'chrome.runtime.sendMessage({type:"ping"})');
     console.log(`后台 ping → ${JSON.stringify(pong)} ${pong?.ok ? '✓' : '✗'}`);
     await screenshot(c, 'popup.png');
   });
+
+  // 4b. popup 实时秒表：植入进行中的会话并触发重渲染，状态行应每秒推进。
+  //     不用重载页面——页面加载事件会唤醒后台结算，锁定沙箱里会把会话清掉。
+  const ticks = await withPage(`chrome-extension://${extId}/src/pages/popup.html`, 'popup.html', async (c) => {
+    await evaluate(c, `(async () => {
+      await chrome.storage.session.set({
+        session: { tabId: 1, windowId: 1, domain: 'example.com', startedAt: Date.now() - 30000 },
+      });
+      // 写一个 d: 前缀的键触发 popup 的 storage.onChanged 重渲染。
+      await chrome.storage.local.set({ 'd:__probe': {} });
+      return true;
+    })()`);
+    await sleep(500);
+    const t1 = await evaluate(c, 'document.getElementById("status").textContent');
+    await sleep(2200);
+    const t2 = await evaluate(c, 'document.getElementById("status").textContent');
+    await evaluate(c, 'chrome.storage.local.remove("d:__probe")');
+    return { t1, t2 };
+  });
+  console.log(
+    ticks.t1 !== ticks.t2 && ticks.t1.includes('正在记录')
+      ? `popup 实时秒表 ✓（${ticks.t1} → ${ticks.t2}）`
+      : `popup 实时秒表 ✗（${ticks.t1} / ${ticks.t2}）`
+  );
 
   // 5. 拦截页静态截图。
   await withPage(

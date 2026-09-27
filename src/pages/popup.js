@@ -10,6 +10,8 @@ let cachedSession = null;
 let cachedToday = null;
 let cachedTodayTotal = 0;
 let liveTimer = null;
+// 排行列表里当前站点那一行的时间元素，随会话实时推进。
+let liveSiteTimeEl = null;
 
 async function render() {
   const [today, settings, session] = await Promise.all([
@@ -22,7 +24,7 @@ async function render() {
   cachedTodayTotal = sumSeconds(today);
   renderStatus(session, today);
   renderToday(today, settings);
-  renderSites(today);
+  renderSites(today, session);
   renderSwitches(settings);
 }
 
@@ -46,6 +48,7 @@ function startTicker() {
 
     const liveSite = (cachedToday[session.domain] || 0) + elapsed;
     $('status').textContent = `正在记录：${session.domain} · 今日 ${fmtDuration(liveSite)}`;
+    if (liveSiteTimeEl) liveSiteTimeEl.textContent = fmtDuration(liveSite);
 
     const liveTotal = fmtDuration(cachedTodayTotal + elapsed);
     $('todayTotal').textContent = liveTotal;
@@ -74,9 +77,10 @@ function renderToday(today, settings) {
   $('todayTotalPlain').textContent = fmtDuration(total);
 }
 
-function renderSites(today) {
+function renderSites(today, session) {
   const list = $('siteList');
   list.textContent = '';
+  liveSiteTimeEl = null;
   const entries = Object.entries(today).sort((a, b) => b[1] - a[1]).slice(0, 5);
 
   if (!entries.length) {
@@ -99,6 +103,12 @@ function renderSites(today) {
     const time = document.createElement('span');
     time.className = 'site-time num';
     time.textContent = fmtDuration(seconds);
+
+    // 当前站点的时间行实时推进（已落盘 + 未落盘会话）。
+    if (session?.domain === domain) {
+      liveSiteTimeEl = time;
+      time.textContent = fmtDuration(seconds + (Date.now() - session.startedAt) / 1000);
+    }
 
     const track = document.createElement('div');
     track.className = 'bar-track';
@@ -150,4 +160,6 @@ chrome.storage.onChanged.addListener((changes, area) => {
 });
 
 bindSwitches();
+// 打开瞬间通知后台立即结算续上会话：焦点切换事件可能抢先清掉会话。
+chrome.runtime.sendMessage({ type: 'zhishi-popup-opened' }).catch(() => {});
 render().then(startTicker);

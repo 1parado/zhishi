@@ -58,6 +58,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     noteHeartbeat(sender);
     return false;
   }
+  // popup 打开瞬间可能因焦点切换竞态清掉会话，主动触发一次结算续上。
+  if (msg && msg.type === 'zhishi-popup-opened') {
+    tick('popup');
+    return false;
+  }
   if (msg && msg.type === 'debug-heartbeats') {
     isPopupOpen().then((popupOpen) =>
       sendResponse({ heartbeats: getHeartbeatState(), popupOpen })
