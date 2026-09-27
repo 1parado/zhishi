@@ -125,9 +125,6 @@ function svgEl(tag, attrs = {}) {
   return el;
 }
 
-// 近 7 天的 7 种切片颜色（chart-1..5 + 两个淡化变体）。
-const DAY_COLORS = ['1', '2', '3', '4', '5', '6', '7'];
-
 function renderWeekChart(week, chartType) {
   const wrap = $('weekChart');
   wrap.textContent = '';
@@ -146,7 +143,7 @@ function renderWeekBar(week, wrap) {
     col.className = 'week-col' + (day.key === todayKey ? ' is-today' : '');
 
     const bar = document.createElement('div');
-    bar.className = 'week-bar';
+    bar.className = `week-bar u-level-${usageLevel(day.seconds)}`;
     bar.style.height = `${Math.max((day.seconds / max) * 100, 1)}%`;
     bar.title = `${day.key} · ${fmtDuration(day.seconds)}`;
 
@@ -179,11 +176,29 @@ function renderWeekLine(week, wrap) {
       class: 'week-area',
       points: `${pts[0][0]},${H - bottom} ${pts.map((p) => p.join(',')).join(' ')} ${pts[6][0]},${H - bottom}`,
     }),
-    svgEl('line', { class: 'week-baseline', x1: 4, y1: H - bottom, x2: W - 4, y2: H - bottom }),
-    svgEl('polyline', { class: 'week-line', points: pts.map((p) => p.join(',')).join(' ') })
+    svgEl('line', { class: 'week-baseline', x1: 4, y1: H - bottom, x2: W - 4, y2: H - bottom })
   );
+  // 相邻两天之间的线段按「后一天」的用量档位着色。
+  for (let i = 1; i < pts.length; i++) {
+    svg.append(
+      svgEl('line', {
+        class: 'week-line',
+        'data-level': String(usageLevel(week[i].seconds)),
+        x1: pts[i - 1][0],
+        y1: pts[i - 1][1],
+        x2: pts[i][0],
+        y2: pts[i][1],
+      })
+    );
+  }
   for (const [i, p] of pts.entries()) {
-    const dot = svgEl('circle', { class: 'week-dot', cx: p[0], cy: p[1], r: 3.5 });
+    const dot = svgEl('circle', {
+      class: 'week-dot',
+      'data-level': String(usageLevel(week[i].seconds)),
+      cx: p[0],
+      cy: p[1],
+      r: 3.5,
+    });
     const title = svgEl('title');
     title.textContent = `${week[i].key} · ${fmtDuration(week[i].seconds)}`;
     dot.append(title);
@@ -217,7 +232,7 @@ function renderWeekPie(week, wrap) {
     if (frac > 0) {
       const seg = svgEl('circle', {
         class: 'pie-seg',
-        'data-color': DAY_COLORS[i],
+        'data-level': String(usageLevel(day.seconds)),
         cx: 50,
         cy: 50,
         r: 38,
@@ -236,7 +251,7 @@ function renderWeekPie(week, wrap) {
     item.className = 'legend-item';
     const dot = document.createElement('span');
     dot.className = 'pie-dot';
-    dot.dataset.color = DAY_COLORS[i];
+    dot.dataset.level = String(usageLevel(day.seconds));
     item.append(dot, document.createTextNode(`${shortDate(day.key)} ${fmtDuration(day.seconds)}`));
     legend.append(item);
   }

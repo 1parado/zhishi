@@ -160,6 +160,32 @@
   background: var(--chart-1);
 }
 
+/* 语义配色（与热力图同源）：按当日用量档位着色，绿/黄/橙/红。 */
+.u-level-0 {
+  background: var(--muted);
+  stroke: var(--muted);
+}
+
+.u-level-1 {
+  background: var(--success);
+  stroke: var(--success);
+}
+
+.u-level-2 {
+  background: var(--warning);
+  stroke: var(--warning);
+}
+
+.u-level-3 {
+  background: color-mix(in srgb, var(--warning) 45%, var(--destructive));
+  stroke: color-mix(in srgb, var(--warning) 45%, var(--destructive));
+}
+
+.u-level-4 {
+  background: var(--destructive);
+  stroke: var(--destructive);
+}
+
 /* 折线图（与柱状图同高：固定 140px，按容器宽度绘制） */
 
 .week-svg {
@@ -172,9 +198,14 @@
   fill: none;
   stroke: var(--chart-1);
   stroke-width: 2;
-  stroke-linejoin: round;
   stroke-linecap: round;
+  stroke-linejoin: round;
 }
+
+.week-line[data-level='1'] { stroke: var(--success); }
+.week-line[data-level='2'] { stroke: var(--warning); }
+.week-line[data-level='3'] { stroke: color-mix(in srgb, var(--warning) 45%, var(--destructive)); }
+.week-line[data-level='4'] { stroke: var(--destructive); }
 
 .week-area {
   fill: var(--chart-1);
@@ -184,6 +215,11 @@
 .week-dot {
   fill: var(--chart-1);
 }
+
+.week-dot[data-level='1'] { fill: var(--success); }
+.week-dot[data-level='2'] { fill: var(--warning); }
+.week-dot[data-level='3'] { fill: color-mix(in srgb, var(--warning) 45%, var(--destructive)); }
+.week-dot[data-level='4'] { fill: var(--destructive); }
 
 .week-baseline {
   stroke: var(--border);
@@ -261,19 +297,18 @@
   flex-shrink: 0;
 }
 
-.pie-dot[data-color='1'], .pie-seg[data-color='1'] { background: var(--chart-1); stroke: var(--chart-1); }
-.pie-dot[data-color='2'], .pie-seg[data-color='2'] { background: var(--chart-2); stroke: var(--chart-2); }
-.pie-dot[data-color='3'], .pie-seg[data-color='3'] { background: var(--chart-3); stroke: var(--chart-3); }
-.pie-dot[data-color='4'], .pie-seg[data-color='4'] { background: var(--chart-4); stroke: var(--chart-4); }
-.pie-dot[data-color='5'], .pie-seg[data-color='5'] { background: var(--chart-5); stroke: var(--chart-5); }
-.pie-dot[data-color='6'], .pie-seg[data-color='6'] {
-  background: color-mix(in srgb, var(--chart-1) 45%, var(--card));
-  stroke: color-mix(in srgb, var(--chart-1) 45%, var(--card));
+/* 饼状图切片按当日用量档位着色（与热力图/柱状/折线同源）。 */
+.pie-dot[data-level='0'], .pie-seg[data-level='0'] {
+  background: var(--muted);
+  stroke: var(--muted);
 }
-.pie-dot[data-color='7'], .pie-seg[data-color='7'] {
-  background: color-mix(in srgb, var(--chart-2) 45%, var(--card));
-  stroke: color-mix(in srgb, var(--chart-2) 45%, var(--card));
+.pie-dot[data-level='1'], .pie-seg[data-level='1'] { background: var(--success); stroke: var(--success); }
+.pie-dot[data-level='2'], .pie-seg[data-level='2'] { background: var(--warning); stroke: var(--warning); }
+.pie-dot[data-level='3'], .pie-seg[data-level='3'] {
+  background: color-mix(in srgb, var(--warning) 45%, var(--destructive));
+  stroke: color-mix(in srgb, var(--warning) 45%, var(--destructive));
 }
+.pie-dot[data-level='4'], .pie-seg[data-level='4'] { background: var(--destructive); stroke: var(--destructive); }
 
 /* 时段输入行 */
 
