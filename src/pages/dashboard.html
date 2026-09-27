@@ -50,8 +50,13 @@
           <div class="card card-pad">
             <div class="section-head">
               <h2 class="card-title">近 7 天</h2>
+              <div class="segmented" role="group" aria-label="图表形式" id="weekChartType">
+                <button class="segment" type="button" data-type="bar" aria-pressed="true">柱状</button>
+                <button class="segment" type="button" data-type="line" aria-pressed="false">折线</button>
+                <button class="segment" type="button" data-type="pie" aria-pressed="false">饼状</button>
+              </div>
             </div>
-            <div class="week-chart" id="weekChart"></div>
+            <div id="weekChart"></div>
           </div>
 
           <div class="card card-pad">

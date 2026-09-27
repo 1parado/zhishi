@@ -148,6 +148,116 @@
   background: var(--chart-1);
 }
 
+/* 折线图 */
+
+.week-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.week-line {
+  fill: none;
+  stroke: var(--chart-1);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.week-area {
+  fill: var(--chart-1);
+  opacity: 0.08;
+}
+
+.week-dot {
+  fill: var(--chart-1);
+}
+
+.week-baseline {
+  stroke: var(--border);
+}
+
+.week-labels {
+  height: auto;
+  padding-top: 0;
+  align-items: initial;
+}
+
+.week-label.is-today {
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+/* 饼状图（环形） */
+
+.pie-wrap {
+  position: relative;
+  width: 168px;
+  margin: 0 auto;
+}
+
+.pie-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+}
+
+.pie-center .pie-total {
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.pie-center .muted {
+  font-size: 10px;
+}
+
+.pie-seg {
+  fill: none;
+  stroke-width: 20;
+  transition: stroke-dasharray 0.4s ease-out;
+}
+
+.legend-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pie-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.pie-dot[data-color='1'], .pie-seg[data-color='1'] { background: var(--chart-1); stroke: var(--chart-1); }
+.pie-dot[data-color='2'], .pie-seg[data-color='2'] { background: var(--chart-2); stroke: var(--chart-2); }
+.pie-dot[data-color='3'], .pie-seg[data-color='3'] { background: var(--chart-3); stroke: var(--chart-3); }
+.pie-dot[data-color='4'], .pie-seg[data-color='4'] { background: var(--chart-4); stroke: var(--chart-4); }
+.pie-dot[data-color='5'], .pie-seg[data-color='5'] { background: var(--chart-5); stroke: var(--chart-5); }
+.pie-dot[data-color='6'], .pie-seg[data-color='6'] {
+  background: color-mix(in srgb, var(--chart-1) 45%, var(--card));
+  stroke: color-mix(in srgb, var(--chart-1) 45%, var(--card));
+}
+.pie-dot[data-color='7'], .pie-seg[data-color='7'] {
+  background: color-mix(in srgb, var(--chart-2) 45%, var(--card));
+  stroke: color-mix(in srgb, var(--chart-2) 45%, var(--card));
+}
+
 /* 时段输入行 */
 
 .hours-row {
@@ -291,20 +401,21 @@
   background: var(--muted);
 }
 
+/* 语义色标：浅（无）→ 绿 → 黄 → 橙 → 红，阈值 1h / 3h / 6h。 */
 .heat-cell[data-level='1'] {
-  background: color-mix(in srgb, var(--chart-1) 25%, var(--card));
+  background: var(--success);
 }
 
 .heat-cell[data-level='2'] {
-  background: color-mix(in srgb, var(--chart-1) 50%, var(--card));
+  background: var(--warning);
 }
 
 .heat-cell[data-level='3'] {
-  background: color-mix(in srgb, var(--chart-1) 75%, var(--card));
+  background: color-mix(in srgb, var(--warning) 45%, var(--destructive));
 }
 
 .heat-cell[data-level='4'] {
-  background: var(--chart-1);
+  background: var(--destructive);
 }
 
 .heat-legend {

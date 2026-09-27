@@ -3,12 +3,12 @@ import {
   filterLimits,
   fmtDuration,
   goalVariant,
-  heatmapLevel,
   isValidTime,
   shortDate,
   shiftDateKey,
   sumSeconds,
   toCSV,
+  usageLevel,
   weekSeries,
   weekdayShort,
 } from '../lib/pure.js';
@@ -49,6 +49,7 @@ async function loadAll() {
 /* ---------- 概览 ---------- */
 
 function renderOverview(days, settings) {
+  renderWeekChartType(settings.weekChart);
   const todayKey = dateKey();
   const todayTotal = sumSeconds(days[todayKey]);
   const week = weekSeries(days, todayKey, 7);
@@ -71,14 +72,43 @@ function renderOverview(days, settings) {
   $('statWeek').textContent = fmtDuration(weekTotal);
   $('statWeekAvg').textContent = `日均 ${fmtDuration(Math.round(weekTotal / 7))}`;
 
-  renderWeekChart(week);
+  renderWeekChart(week, settings.weekChart);
   renderHeatmap(days, todayKey);
   renderTopSites(days, todayKey);
 }
 
-function renderWeekChart(week) {
+// 图表形式切换，偏好持久化到设置。
+for (const segment of document.querySelectorAll('#weekChartType .segment')) {
+  segment.addEventListener('click', () => {
+    saveSettings({ weekChart: segment.dataset.type });
+  });
+}
+
+function renderWeekChartType(type) {
+  for (const segment of document.querySelectorAll('#weekChartType .segment')) {
+    segment.setAttribute('aria-pressed', String(segment.dataset.type === type));
+  }
+}
+
+function svgEl(tag, attrs = {}) {
+  const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  for (const [key, value] of Object.entries(attrs)) el.setAttribute(key, value);
+  return el;
+}
+
+// 近 7 天的 7 种切片颜色（chart-1..5 + 两个淡化变体）。
+const DAY_COLORS = ['1', '2', '3', '4', '5', '6', '7'];
+
+function renderWeekChart(week, chartType) {
   const wrap = $('weekChart');
   wrap.textContent = '';
+  if (chartType === 'line') return renderWeekLine(week, wrap);
+  if (chartType === 'pie') return renderWeekPie(week, wrap);
+  renderWeekBar(week, wrap);
+}
+
+function renderWeekBar(week, wrap) {
+  wrap.className = 'week-chart';
   const max = Math.max(...week.map((d) => d.seconds), 1);
   const todayKey = dateKey();
 
@@ -100,6 +130,116 @@ function renderWeekChart(week) {
   }
 }
 
+function renderWeekLine(week, wrap) {
+  wrap.className = '';
+  const max = Math.max(...week.map((d) => d.seconds), 60);
+  const W = 308;
+  const H = 130;
+  const bottom = 16;
+  const top = 10;
+  const todayKey = dateKey();
+  const pts = week.map((day, i) => [
+    8 + (i * (W - 16)) / 6,
+    H - bottom - (day.seconds / max) * (H - bottom - top),
+  ]);
+
+  const svg = svgEl('svg', { class: 'week-svg', viewBox: `0 0 ${W} ${H}` });
+  svg.append(
+    svgEl('polygon', {
+      class: 'week-area',
+      points: `${pts[0][0]},${H - bottom} ${pts.map((p) => p.join(',')).join(' ')} ${pts[6][0]},${H - bottom}`,
+    }),
+    svgEl('line', { class: 'week-baseline', x1: 4, y1: H - bottom, x2: W - 4, y2: H - bottom }),
+    svgEl('polyline', { class: 'week-line', points: pts.map((p) => p.join(',')).join(' ') })
+  );
+  for (const [i, p] of pts.entries()) {
+    const dot = svgEl('circle', { class: 'week-dot', cx: p[0], cy: p[1], r: 3.5 });
+    const title = svgEl('title');
+    title.textContent = `${week[i].key} · ${fmtDuration(week[i].seconds)}`;
+    dot.append(title);
+    svg.append(dot);
+  }
+  wrap.append(svg);
+  appendWeekLabels(wrap, week, todayKey);
+}
+
+function renderWeekPie(week, wrap) {
+  wrap.className = '';
+  const todayKey = dateKey();
+  const total = week.reduce((acc, day) => acc + day.seconds, 0);
+
+  const legend = document.createElement('div');
+  legend.className = 'legend-row';
+
+  if (total <= 0) {
+    const empty = document.createElement('p');
+    empty.className = 'empty';
+    empty.textContent = '近 7 天还没有记录。';
+    wrap.append(empty);
+    return;
+  }
+
+  const C = 2 * Math.PI * 38;
+  const svg = svgEl('svg', { class: 'week-svg', viewBox: '0 0 100 100' });
+  let acc = 0;
+  for (const [i, day] of week.entries()) {
+    const frac = day.seconds / total;
+    if (frac > 0) {
+      const seg = svgEl('circle', {
+        class: 'pie-seg',
+        'data-color': DAY_COLORS[i],
+        cx: 50,
+        cy: 50,
+        r: 38,
+        'stroke-dasharray': `${Math.max(frac * C - 1.2, 0.8)} ${C}`,
+        'stroke-dashoffset': -acc * C,
+        transform: 'rotate(-90 50 50)',
+      });
+      const title = svgEl('title');
+      title.textContent = `${shortDate(day.key)} · ${fmtDuration(day.seconds)}`;
+      seg.append(title);
+      svg.append(seg);
+      acc += frac;
+    }
+
+    const item = document.createElement('span');
+    item.className = 'legend-item';
+    const dot = document.createElement('span');
+    dot.className = 'pie-dot';
+    dot.dataset.color = DAY_COLORS[i];
+    item.append(dot, document.createTextNode(`${shortDate(day.key)} ${fmtDuration(day.seconds)}`));
+    legend.append(item);
+  }
+
+  const pieWrap = document.createElement('div');
+  pieWrap.className = 'pie-wrap';
+  pieWrap.append(svg);
+  const center = document.createElement('div');
+  center.className = 'pie-center';
+  const value = document.createElement('span');
+  value.className = 'pie-total num';
+  value.textContent = fmtDuration(total);
+  const caption = document.createElement('span');
+  caption.className = 'muted';
+  caption.textContent = '近 7 天';
+  center.append(value, caption);
+  pieWrap.append(center);
+
+  wrap.append(pieWrap, legend);
+}
+
+function appendWeekLabels(wrap, week, todayKey) {
+  const labels = document.createElement('div');
+  labels.className = 'week-chart week-labels';
+  for (const day of week) {
+    const span = document.createElement('span');
+    span.className = 'week-label' + (day.key === todayKey ? ' is-today' : '');
+    span.textContent = day.key === todayKey ? '今天' : weekdayShort(day.key);
+    labels.append(span);
+  }
+  wrap.append(labels);
+}
+
 function renderHeatmap(days, todayKey) {
   const wrap = $('heatmap');
   wrap.textContent = '';
@@ -108,21 +248,19 @@ function renderHeatmap(days, todayKey) {
   const today = new Date(todayKey + 'T00:00:00');
   const end = shiftDateKey(todayKey, today.getDay() === 6 ? 0 : 6 - today.getDay());
   const cells = [];
-  let max = 0;
   let yearTotal = 0;
   for (let i = 0; i < 371; i++) {
     const key = shiftDateKey(end, -i);
     if (key > todayKey) continue; // 最后一周未来日期留空
     const seconds = sumSeconds(days[key]);
     yearTotal += seconds;
-    max = Math.max(max, seconds);
     cells.push({ key, seconds });
   }
 
   for (const cell of cells) {
     const el = document.createElement('span');
     el.className = 'heat-cell';
-    el.dataset.level = String(heatmapLevel(cell.seconds, max));
+    el.dataset.level = String(usageLevel(cell.seconds));
     el.title = `${cell.key} · ${fmtDuration(cell.seconds)}`;
     wrap.append(el);
   }

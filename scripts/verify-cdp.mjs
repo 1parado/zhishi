@@ -251,6 +251,28 @@ try {
         return !!document.querySelector('.limit-schedule');
       })()`);
       console.log(`时段屏蔽编辑器 → ${schedOpen ? '✓' : '✗'}`);
+
+      // 近 7 天图表形式切换 + 热力图语义配色。
+      const chartChecks = await evaluate(c, `(async () => {
+        const { saveSettings } = await import(chrome.runtime.getURL('src/lib/settings.js'));
+        document.querySelector('.tab[data-tab="overview"]').click();
+        const out = {};
+        for (const [type, selector] of [['line', '.week-line'], ['pie', '.pie-seg'], ['bar', '.week-bar']]) {
+          await saveSettings({ weekChart: type });
+          await new Promise((r) => setTimeout(r, 400));
+          out[type] = document.querySelectorAll(selector).length;
+        }
+        out.heatColored = !!document.querySelector(
+          '.heat-cell[data-level="1"], .heat-cell[data-level="2"], .heat-cell[data-level="3"], .heat-cell[data-level="4"]'
+        );
+        return out;
+      })()`);
+      const chartOk =
+        chartChecks.line > 0 && chartChecks.pie > 0 && chartChecks.bar === 7 && chartChecks.heatColored;
+      console.log(
+        `图表切换 → 折线 ${chartChecks.line} / 饼状 ${chartChecks.pie} / 柱状 ${chartChecks.bar}，热力新配色 ${chartChecks.heatColored} ${chartOk ? '✓' : '✗'}`
+      );
+      await screenshot(c, 'overview-charts.png');
       await screenshot(c, 'limits-filter.png');
     }
   );

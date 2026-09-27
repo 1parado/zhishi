@@ -11,6 +11,8 @@ import { clearGrant } from '../background/store.js';
 export const DEFAULT_SETTINGS = {
   // 每日总目标（分钟）。enabled 为 false 时 UI 只显示用量。
   goal: { enabled: false, dailyMinutes: 240 },
+  // 近 7 天图表形式：bar 柱状 / line 折线 / pie 饼状。
+  weekChart: 'bar',
   // 网站限额总开关 + 逐条规则：
   // { id, domain, minutes, enabled, schedule?: { from, to } }
   // schedule 存在时，该时间窗内直接拦截（支持跨零点），不受每日分钟数影响。
@@ -104,6 +106,8 @@ function normalize(raw) {
   if (!isValidTime(hours.from)) hours.from = DEFAULT_SETTINGS.health.activeHours.from;
   if (!isValidTime(hours.to)) hours.to = DEFAULT_SETTINGS.health.activeHours.to;
   if (hours.mode !== 'range') hours.mode = 'all';
+
+  if (!['bar', 'line', 'pie'].includes(merged.weekChart)) merged.weekChart = 'bar';
 
   merged.heartbeat = {
     enabled: merged.heartbeat?.enabled !== false,

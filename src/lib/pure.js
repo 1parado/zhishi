@@ -91,14 +91,15 @@ export function weekSeries(dailyMap, endKey, days = 7) {
   return out;
 }
 
-/** 热力图强度档位 0–4。 */
-export function heatmapLevel(seconds, maxSeconds) {
+/**
+ * 用量颜色档位（绝对时长语义，跨天可比）：
+ * 0 无记录 / 1 绿（<1h）/ 2 黄（1–3h）/ 3 橙（3–6h）/ 4 红（≥6h）。
+ */
+export function usageLevel(seconds) {
   if (!seconds || seconds <= 0) return 0;
-  if (!maxSeconds) return 1;
-  const ratio = seconds / maxSeconds;
-  if (ratio <= 0.25) return 1;
-  if (ratio <= 0.5) return 2;
-  if (ratio <= 0.75) return 3;
+  if (seconds < 3600) return 1;
+  if (seconds < 3 * 3600) return 2;
+  if (seconds < 6 * 3600) return 3;
   return 4;
 }
 

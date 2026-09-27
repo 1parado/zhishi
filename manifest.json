@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "知时 · 注意力与健康",
   "short_name": "知时",
-  "version": "1.4.4",
+  "version": "1.5.0",
   "description": "记录每个网站的使用时长，提供护眼与久坐提醒、网站限额。所有数据仅保存在本机。",
   "minimum_chrome_version": "116",
   "icons": {

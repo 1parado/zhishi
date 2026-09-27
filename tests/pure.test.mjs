@@ -8,13 +8,13 @@ import {
   fmtBadge,
   fmtDuration,
   goalVariant,
-  heatmapLevel,
   inTimeWindow,
   isValidTime,
   shiftDateKey,
   shortDate,
   sumSeconds,
   toCSV,
+  usageLevel,
   weekSeries,
   weekdayShort,
 } from '../src/lib/pure.js';
@@ -85,13 +85,14 @@ test('weekSeries 返回最近 7 天升序', () => {
   assert.equal(series[0].seconds, 0);
 });
 
-test('heatmapLevel 分档', () => {
-  assert.equal(heatmapLevel(0, 100), 0);
-  assert.equal(heatmapLevel(25, 100), 1);
-  assert.equal(heatmapLevel(50, 100), 2);
-  assert.equal(heatmapLevel(75, 100), 3);
-  assert.equal(heatmapLevel(90, 100), 4);
-  assert.equal(heatmapLevel(50, 0), 1);
+test('usageLevel 绝对时长分档（绿/黄/橙/红）', () => {
+  assert.equal(usageLevel(0), 0);
+  assert.equal(usageLevel(3599), 1);
+  assert.equal(usageLevel(3600), 2);
+  assert.equal(usageLevel(3 * 3600 - 1), 2);
+  assert.equal(usageLevel(3 * 3600), 3);
+  assert.equal(usageLevel(6 * 3600 - 1), 3);
+  assert.equal(usageLevel(6 * 3600), 4);
 });
 
 test('goalVariant 状态', () => {
