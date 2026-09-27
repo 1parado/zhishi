@@ -178,34 +178,6 @@ figcaption {
   transform: none;
 }
 
-/* ---------- 常数表 ---------- */
-
-.constants {
-  width: 100%;
-  border-collapse: collapse;
-  margin: 0 0 20px;
-  font-size: 14.5px;
-}
-
-.constants td {
-  border-top: 1px solid var(--border);
-  padding: 10px 0;
-  vertical-align: top;
-}
-
-.constants td:first-child {
-  font-family: ui-monospace, Consolas, monospace;
-  font-size: 13.5px;
-  color: var(--muted-foreground);
-  width: 11em;
-  padding-right: 16px;
-  white-space: nowrap;
-}
-
-.constants tr:last-child td {
-  border-bottom: 1px solid var(--border);
-}
-
 /* ---------- 安装步骤 ---------- */
 
 .install {
