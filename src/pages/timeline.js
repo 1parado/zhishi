@@ -35,11 +35,32 @@ function renderHours(timeline) {
   const wrap = $('timeline');
   wrap.textContent = '';
 
-  const activeHours = Object.keys(timeline)
-    .filter((h) => sumSeconds(timeline[h]) > 0)
-    .sort();
+  // 汇总所有出现过的域名，按首次出现顺序循环分配色板。
+  const colorMap = new Map();
+  let colorCursor = 0;
+  const colorOf = (domain) => {
+    if (!colorMap.has(domain)) {
+      colorMap.set(domain, String((colorCursor % 7) + 1));
+      colorCursor += 1;
+    }
+    return colorMap.get(domain);
+  };
 
-  if (!activeHours.length) {
+  // 把每个小时桶内的域名按顺序铺进 24 小时色带（桶内按用时降序排列）。
+  const segs = [];
+  const hours = Object.keys(timeline).sort();
+  for (const hour of hours) {
+    const hourStart = Number(hour) * 3600;
+    let offset = hourStart;
+    const sites = Object.entries(timeline[hour]).sort((a, b) => b[1] - a[1]);
+    for (const [domain, seconds] of sites) {
+      if (seconds <= 0) continue;
+      segs.push({ domain, start: offset, len: seconds, color: colorOf(domain) });
+      offset += seconds;
+    }
+  }
+
+  if (!segs.length) {
     const empty = document.createElement('p');
     empty.className = 'empty';
     empty.textContent = t('timelineEmpty');
@@ -47,52 +68,30 @@ function renderHours(timeline) {
     return;
   }
 
-  for (const hour of activeHours) {
-    const sites = Object.entries(timeline[hour]).sort((a, b) => b[1] - a[1]);
-    const hourTotal = sumSeconds(timeline[hour]);
-
-    const row = document.createElement('div');
-    row.className = 'tl-row';
-
-    const head = document.createElement('div');
-    head.className = 'tl-row-head';
-    const hourLabel = document.createElement('span');
-    hourLabel.className = 'tl-hour';
-    hourLabel.textContent = `${hour}:00 – ${hour}:59`;
-    const rowTotal = document.createElement('span');
-    rowTotal.className = 'tl-row-total num';
-    rowTotal.textContent = fmtDuration(hourTotal);
-    head.append(hourLabel, rowTotal);
-    row.append(head);
-
-    const sitesWrap = document.createElement('div');
-    sitesWrap.className = 'tl-sites';
-    const max = sites[0][1];
-    for (const [domain, seconds] of sites) {
-      const line = document.createElement('div');
-      line.className = 'tl-site';
-
-      const name = document.createElement('span');
-      name.className = 'tl-site-name';
-      name.textContent = domain;
-
-      const track = document.createElement('div');
-      track.className = 'bar-track';
-      const fill = document.createElement('div');
-      fill.className = 'bar-fill';
-      fill.style.width = `${Math.max((seconds / max) * 100, 2)}%`;
-      track.append(fill);
-
-      const time = document.createElement('span');
-      time.className = 'tl-site-time num';
-      time.textContent = fmtDuration(seconds);
-
-      line.append(name, track, time);
-      sitesWrap.append(line);
-    }
-    row.append(sitesWrap);
-    wrap.append(row);
+  const strip = document.createElement('div');
+  strip.className = 'tl-strip';
+  for (const seg of segs) {
+    const el = document.createElement('span');
+    el.className = 'tl-seg';
+    el.dataset.color = seg.color;
+    el.style.left = `${(seg.start / 86400) * 100}%`;
+    el.style.width = `${Math.max((seg.len / 86400) * 100, 0.15)}%`;
+    const startH = Math.floor(seg.start / 3600);
+    el.title = `${seg.domain} · ${String(startH).padStart(2, '0')} 时段 · ${fmtDuration(seg.len)}`;
+    strip.append(el);
   }
+  wrap.append(strip);
+
+  const axis = document.createElement('div');
+  axis.className = 'tl-axis';
+  for (let i = 0; i <= 6; i++) {
+    const tick = document.createElement('span');
+    tick.className = 'tl-tick';
+    tick.textContent = `${String(i * 4).padStart(2, '0')}:00`;
+    tick.style.left = `${(i / 6) * 100}%`;
+    axis.append(tick);
+  }
+  wrap.append(axis);
 }
 
 function renderSites(day) {

@@ -406,24 +406,28 @@ try {
     `chrome-extension://${extId}/src/pages/timeline.html?date=${todayStr}`,
     'timeline.html',
     async (c) => {
-      const rows = await evaluate(c, `document.querySelectorAll('.tl-row').length`);
+      const segs = await evaluate(c, `document.querySelectorAll('.tl-seg').length`);
+      const ticks = await evaluate(c, `document.querySelectorAll('.tl-tick').length`);
       const total = await evaluate(c, 'document.getElementById("tlTotal").textContent');
       const sites = await evaluate(c, `document.querySelectorAll('#tlSites .top-row').length`);
       await evaluate(c, `document.getElementById('prevDay').click()`);
       await sleep(600);
       const navigated = await evaluate(c, 'location.search');
-      return { rows, total, sites, navigated };
+      return { segs, ticks, total, sites, navigated };
     }
   );
   const tlOk =
-    tl.rows === 3 &&
+    tl.segs === 4 &&
+    tl.ticks === 7 &&
     tl.sites >= 4 &&
     tl.total !== '0 分钟' &&
-    tl.total !== '0 min' &&
     tl.navigated.includes('date=');
   console.log(
-    `时间线页 → ${tl.rows} 个小时段（应为 3）/ 当日总时长 ${tl.total}（全天聚合，含演示数据）/ 站点 ${tl.sites} 个，前一天导航 → ${tl.navigated} ${tlOk ? '✓' : '✗'}`
+    `时间线页 → ${tl.segs} 个色块（应为 4）/ ${tl.ticks} 个刻度（应为 7）/ 当日总时长 ${tl.total}（全天聚合）/ 站点 ${tl.sites} 个，前一天导航 → ${tl.navigated} ${tlOk ? '✓' : '✗'}`
   );
+  await withPage(`chrome-extension://${extId}/src/pages/timeline.html?date=${todayStr}`, 'timeline.html', async (c) => {
+    await screenshot(c, 'timeline.png');
+  });
 
   // 4e. 热力图点击跳转：点击一个有数据的格子应进入对应日期的时间线。
   const heatNav = await withPage(`chrome-extension://${extId}/src/pages/dashboard.html`, 'dashboard.html', async (c) => {

@@ -133,8 +133,8 @@ const MESSAGES = {
     timelineNext: '后一天',
     timelineToday: '今天',
     totalLabel: '当日总时长',
-    timelineByHour: '按小时分段',
-    timelineHint: '每小时内的网站与用时',
+    tlAxisTitle: '时间轴',
+    tlAxisHint: '每个色块代表一段网站使用，悬停查看详情。',
     timelineEmpty: '这一天还没有记录。',
     backToDash: '返回仪表盘',
 
@@ -272,8 +272,8 @@ const MESSAGES = {
     timelineNext: 'Next day',
     timelineToday: 'Today',
     totalLabel: 'Total',
-    timelineByHour: 'By hour',
-    timelineHint: 'Sites and durations within each hour',
+    tlAxisTitle: 'Timeline',
+    tlAxisHint: 'Each block is a browsing segment — hover for details.',
     timelineEmpty: 'No records for this day.',
     backToDash: 'Back to dashboard',
 
