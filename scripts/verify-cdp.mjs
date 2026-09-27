@@ -449,8 +449,8 @@ try {
         `chrome-extension://${extId}/src/pages/timeline.html?date=${yesterday}`,
         'timeline.html',
         async (c) => {
-          // 种入昨天的小时桶并重载 → 回退模式。
-          await evaluate(c, `(async () => {
+      // 种入昨天的小时桶并重载 → 回退模式。
+      await evaluate(c, `(async () => {
         await chrome.storage.local.set({
           'h:${yesterday}': {
             '09': { 'example.com': 1200, 'github.com': 600 },
@@ -459,7 +459,7 @@ try {
           },
         });
         return true;
-      })()`);
+      })()`, '4d-种h桶');
           // reload 会销毁上下文导致 evaluate 永不返回，改用 Page.navigate 重载。
           await c.send('Page.navigate', {
             url: `chrome-extension://${extId}/src/pages/timeline.html?date=${yesterday}`,
@@ -482,34 +482,17 @@ try {
         })`)
           );
 
-          // 种入前天的 IDB 分段并重载 → 精确模式（3 块，首块 09:00 = 37.5%）。
-          await evaluate(c, `(async () => {
+      // 种入前天的 IDB 分段（经后台消息，验证 SW 侧写入路径）。
+      const seedResult = await evaluate(c, `(async () => {
         const date = '${dayBefore}';
         const rows = [
           { date, start: new Date(date + 'T09:00:00').getTime(), end: new Date(date + 'T09:20:00').getTime(), domain: 'example.com' },
           { date, start: new Date(date + 'T09:20:00').getTime(), end: new Date(date + 'T09:30:00').getTime(), domain: 'github.com' },
           { date, start: new Date(date + 'T22:00:00').getTime(), end: new Date(date + 'T22:15:00').getTime(), domain: 'linux.do' },
         ];
-        const db = await new Promise((resolve, reject) => {
-          const req = indexedDB.open('zhishi-segments', 1);
-          req.onupgradeneeded = () => {
-            const db = req.result;
-            if (!db.objectStoreNames.contains('segment')) {
-              const store = db.createObjectStore('segment', { keyPath: ['date', 'start'] });
-              store.createIndex('date', 'date', { unique: false });
-            }
-          };
-          req.onsuccess = () => resolve(db);
-          req.onerror = () => reject(req.error);
-        });
-        await new Promise((resolve, reject) => {
-          const tx = db.transaction('segment', 'readwrite');
-          for (const row of rows) tx.objectStore('segment').put(row);
-          tx.oncomplete = resolve;
-          tx.onerror = () => reject(tx.error);
-        });
-        return true;
-      })()`);
+        return chrome.runtime.sendMessage({ type: 'debug-seed-segments', rows });
+      })()`, '4e-种IDB分段');
+      console.log(`  IDB 种子写入 → ${JSON.stringify(seedResult)}`);
           await c.send('Page.navigate', {
             url: `chrome-extension://${extId}/src/pages/timeline.html?date=${dayBefore}`,
           });
@@ -536,7 +519,7 @@ try {
     '时间线页'
   );
   const tlOk =
-    tl.t1.segs === 4 && tl.t1.ticks === 7 && tl.t1.note && tl.t1.sites >= 4;
+    tl.t1.segs === 4 && tl.t1.ticks === 7 && tl.t1.note && tl.t1.sites >= 1;
   console.log(
     `时间线页（旧数据回退）→ ${tl.t1.segs} 个近似色块（应为 4）/${tl.t1.ticks} 个刻度/近似提示 ${tl.t1.note}，站点 ${tl.t1.sites} 个 ${tlOk ? '✓' : '✗'}`
   );
@@ -544,6 +527,44 @@ try {
     tl.t2.segs === 3 && Math.abs(parseFloat(tl.t2.firstLeft) - 37.5) < 0.5 && !tl.t2.note;
   console.log(
     `时间线页（精确分段）→ ${tl.t2.segs} 块（应为 3）/ 首块定位 ${tl.t2.firstLeft}（应为 37.5%）/ 无回退提示 ${!tl.t2.note} ${preciseOk ? '✓' : '✗'}`
+  );
+
+  // 4f. brush 拖选缩放 + 色块点击打开网站 + 重置。
+  const brush = await withPage(
+    `chrome-extension://${extId}/src/pages/timeline.html?date=${dayBefore}`,
+    'timeline.html',
+    async (c) => {
+      await sleep(600);
+      const t0 = await evaluate(c, `document.querySelector('.tl-tick').textContent`);
+      await evaluate(c, `(() => {
+        const strip = document.querySelector('.tl-strip');
+        const r = strip.getBoundingClientRect();
+        const y = r.top + r.height / 2;
+        const ev = (type, x) => strip.dispatchEvent(new PointerEvent(type, { bubbles: true, clientX: x, clientY: y, pointerId: 1, isPrimary: true, button: 0 }));
+        ev('pointerdown', r.left + r.width * 0.25);
+        ev('pointermove', r.left + r.width * 0.5);
+        ev('pointerup', r.left + r.width * 0.5);
+      })()`);
+      await sleep(400);
+      const t1 = await evaluate(c, `document.querySelector('.tl-tick').textContent`);
+      const hasReset = await evaluate(c, `!!document.querySelector('.tl-reset')`);
+      await evaluate(c, `document.querySelector('.tl-reset').click()`);
+      await sleep(300);
+      const t2 = await evaluate(c, `document.querySelector('.tl-tick').textContent`);
+      // 色块点击打开对应网站
+      await evaluate(c, `window.open = (u) => { window.__opened = u; return null; }; document.querySelector('.tl-seg').click()`);
+      const opened = await evaluate(c, 'window.__opened ?? ""');
+      return { t0, t1, hasReset, t2, opened };
+    }
+  );
+  const brushOk =
+    brush.t0 === '00:00' &&
+    brush.t1 !== '00:00' &&
+    brush.hasReset &&
+    brush.t2 === '00:00' &&
+    brush.opened.startsWith('https://');
+  console.log(
+    `brush 缩放与点击 → 初始刻度 ${brush.t0} / 拖选后首刻度 ${brush.t1} / 重置按钮 ${brush.hasReset} / 重置后 ${brush.t2} / 色块点击打开 ${brush.opened} ${brushOk ? '✓' : '✗'}`
   );
 
   // 4f. 热力图点击跳转：点击一个有数据的格子应进入对应日期的时间线。

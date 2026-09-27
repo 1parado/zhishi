@@ -7,6 +7,7 @@ import { ensureAlarms } from './health.js';
 import { ensureMenu } from './menu.js';
 import { updateBadge } from './badge.js';
 import { getHeartbeatState, isPopupOpen, noteHeartbeat, tick } from './tracker.js';
+import { addSegmentRows } from '../lib/idb.js';
 
 chrome.idle.setDetectionInterval(60);
 
@@ -67,6 +68,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     isPopupOpen().then((popupOpen) =>
       sendResponse({ heartbeats: getHeartbeatState(), popupOpen })
     );
+    return true; // 异步响应
+  }
+  // 开发辅助：直接写入浏览分段（端到端验证用）。
+  if (msg && msg.type === 'debug-seed-segments' && Array.isArray(msg.rows)) {
+    addSegmentRows(msg.rows)
+      .then((ok) => sendResponse({ ok: ok !== false, count: msg.rows.length }))
+      .catch((err) => sendResponse({ ok: false, err: String(err) }));
     return true; // 异步响应
   }
   return false;

@@ -304,6 +304,39 @@ button {
   font-size: 12px;
 }
 
+/* ---------- 图例（色点 + 文本，饼状图/时间线共用） ---------- */
+
+.legend-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pie-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.pie-dot[data-color='1'] { background: var(--chart-1); }
+.pie-dot[data-color='2'] { background: var(--chart-2); }
+.pie-dot[data-color='3'] { background: var(--chart-3); }
+.pie-dot[data-color='4'] { background: var(--chart-4); }
+.pie-dot[data-color='5'] { background: var(--chart-5); }
+.pie-dot[data-color='6'] { background: color-mix(in srgb, var(--chart-1) 45%, var(--card)); }
+.pie-dot[data-color='7'] { background: color-mix(in srgb, var(--chart-2) 45%, var(--card)); }
+
 /* ---------- 空状态 ---------- */
 
 .empty {

@@ -1,4 +1,4 @@
-import { dateKey, fmtDuration, shiftDateKey, sumSeconds } from '../lib/pure.js';
+import { dateKey, fmtDuration, shortDate, shiftDateKey, sumSeconds } from '../lib/pure.js';
 import { applyI18n, initI18n, t } from '../lib/i18n.js';
 import { getSegmentsByDate } from '../lib/idb.js';
 import { getDay, getTimeline } from '../background/store.js';
@@ -8,12 +8,27 @@ const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
 let currentDate = params.get('date') || dateKey();
 
+// 缩放窗口（当天内的毫秒区间）；null = 全天视图。
+const view = { start: null, end: null };
+// brush 拖选后短暂抑制色块点击，避免拖选结束误开网站。
+let suppressSegClick = false;
+
 function dateLabel(key) {
   const [y, m, d] = key.split('-').map(Number);
   const locale = document.documentElement.lang === 'en' ? 'en-US' : 'zh-CN';
   return new Intl.DateTimeFormat(locale, { month: 'long', day: 'numeric', year: 'numeric' }).format(
     new Date(y, m - 1, d)
   );
+}
+
+function dayStartMs(key) {
+  const [y, m, d] = key.split('-').map(Number);
+  return new Date(y, m - 1, d).getTime();
+}
+
+function fmtClock(ms) {
+  const d = new Date(ms);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
 async function render() {
@@ -34,9 +49,15 @@ async function render() {
 
   const wrap = $('timeline');
   wrap.textContent = '';
+  view.start = null;
+  view.end = null;
 
   if (segments.length) {
-    renderSegments(segments, wrap);
+    renderRibbon(
+      segments.map((s) => ({ domain: s.domain, start: s.start, end: s.end })),
+      wrap,
+      false
+    );
   } else {
     // 升级前（或 IDB 不可用）的旧数据：退回小时桶近似渲染。
     renderHours(hourBuckets, wrap);
@@ -50,18 +71,15 @@ async function render() {
   renderSites(day);
 }
 
-function dayStartMs(key) {
-  const [y, m, d] = key.split('-').map(Number);
-  return new Date(y, m - 1, d).getTime();
-}
+/** 24 小时色带（含缩放窗口、重叠错位、brush 拖选、点击跳转）。 */
+function renderRibbon(segsAbs, wrap) {
+  wrap.textContent = ''; // 缩放/重置的重绘也走这里，先清空旧内容
+  const startMs = dayStartMs(currentDate);
+  const dayEnd = startMs + 86400000;
+  const vStart = view.start ?? startMs;
+  const vEnd = view.end ?? dayEnd;
+  const span = vEnd - vStart;
 
-function fmtClock(ms) {
-  const d = new Date(ms);
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-}
-
-/** 精确模式：每个结算分段就是一个真实甘特块。 */
-function renderSegments(segments, wrap) {
   const colorMap = new Map();
   let colorCursor = 0;
   const colorOf = (domain) => {
@@ -72,85 +90,189 @@ function renderSegments(segments, wrap) {
     return colorMap.get(domain);
   };
 
-  const startMs = dayStartMs(currentDate);
-  const DAY_MS = 86400000;
   const strip = document.createElement('div');
   strip.className = 'tl-strip';
-  for (const seg of segments) {
+
+  // 按开始时间排序后铺排；与前一色块重叠时错位到第二车道（上移 + 半透明）。
+  let prevEnd = -Infinity;
+  for (const seg of [...segsAbs].sort((a, b) => a.start - b.start)) {
+    const s = Math.max(seg.start, vStart);
+    const e = Math.min(seg.end, vEnd);
+    if (e <= s) continue;
     const el = document.createElement('span');
     el.className = 'tl-seg';
     el.dataset.color = colorOf(seg.domain);
-    el.style.left = `${((seg.start - startMs) / DAY_MS) * 100}%`;
-    el.style.width = `${Math.max(((seg.end - seg.start) / DAY_MS) * 100, 0.15)}%`;
-    el.title = `${seg.domain} · ${fmtClock(seg.start)} – ${fmtClock(seg.end)} · ${fmtDuration(
-      Math.round((seg.end - seg.start) / 1000)
+    el.style.left = `${((s - vStart) / span) * 100}%`;
+    el.style.width = `${Math.max(((e - s) / span) * 100, 0.15)}%`;
+    if (seg.start < prevEnd) {
+      el.classList.add('lane2'); // 重叠：上移 2px + 半透明
+    } else {
+      prevEnd = seg.end;
+    }
+    el.title = `${seg.domain} · ${fmtClock(s)} – ${fmtClock(e)} · ${fmtDuration(
+      Math.round((e - s) / 1000)
     )}`;
+    el.addEventListener('click', () => {
+      if (suppressSegClick) return;
+      window.open(`https://${seg.domain}`, '_blank');
+    });
     strip.append(el);
   }
-  wrap.append(strip);
-  appendAxis(wrap);
+
+  // 左侧日期标签 + 色带 + 刻度轴
+  const row = document.createElement('div');
+  row.className = 'tl-strip-row';
+  const dateChip = document.createElement('span');
+  dateChip.className = 'tl-date-chip';
+  dateChip.textContent = shortDate(currentDate);
+  const main = document.createElement('div');
+  main.className = 'tl-strip-main';
+  main.append(strip);
+  row.append(dateChip, main);
+
+  wrap.append(row);
+
+  // 刻度轴：按缩放窗口自适应步长（约 6 档）。
+  const spanMin = span / 60000;
+  const steps = [5, 10, 15, 30, 60, 120, 240, 480];
+  const stepMin = steps.find((s) => spanMin / s <= 7) ?? 480;
+  const axis = document.createElement('div');
+  axis.className = 'tl-axis';
+  const firstTick = Math.ceil(vStart / (stepMin * 60000)) * stepMin * 60000;
+  for (let ms = firstTick; ms <= vEnd; ms += stepMin * 60000) {
+    const tick = document.createElement('span');
+    tick.className = 'tl-tick';
+    tick.textContent = fmtClock(ms);
+    tick.style.left = `${((ms - vStart) / span) * 100}%`;
+    axis.append(tick);
+  }
+  main.append(axis);
+
+  // 缩放状态下的重置按钮。
+  if (view.start !== null) {
+    const reset = document.createElement('button');
+    reset.type = 'button';
+    reset.className = 'btn btn-ghost btn-sm tl-reset';
+    reset.textContent = t('tlReset');
+    reset.addEventListener('click', () => {
+      view.start = null;
+      view.end = null;
+      renderRibbon(segsAbs, wrap);
+    });
+    main.append(reset);
+  }
+
+  // 图例（域名 + 色点）
+  const legendBlock = document.createElement('div');
+  legendBlock.className = 'tl-legend-block';
+  const legend = document.createElement('div');
+  legend.className = 'legend-row';
+  for (const [domain, color] of colorMap) {
+    const item = document.createElement('span');
+    item.className = 'legend-item';
+    const dot = document.createElement('span');
+    dot.className = 'pie-dot';
+    dot.dataset.color = color;
+    item.append(dot, document.createTextNode(domain));
+    legend.append(item);
+  }
+  legendBlock.append(legend);
+  wrap.append(legendBlock);
+
+  attachBrush(strip, segsAbs, wrap, vStart, span);
+}
+
+/** brush 拖选：按住拖动选出时间区间（约 2~4 小时最实用），松开即放大。 */
+function attachBrush(strip, segsAbs, wrap, vStart, span) {
+  let brushRect = null;
+  let x0 = 0;
+  let dragging = false;
+
+  strip.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0 || !event.isPrimary) return;
+    dragging = true;
+    x0 = event.clientX;
+    brushRect = document.createElement('div');
+    brushRect.className = 'tl-brush-rect';
+    brushRect.style.left = `${event.clientX - strip.getBoundingClientRect().left}px`;
+    brushRect.style.width = '0px';
+    strip.append(brushRect);
+    strip.setPointerCapture(event.pointerId);
+  });
+
+  strip.addEventListener('pointermove', (event) => {
+    if (!dragging || !brushRect) return;
+    const rect = strip.getBoundingClientRect();
+    const x = Math.min(Math.max(event.clientX, rect.left), rect.right);
+    const left = Math.min(x0, x);
+    brushRect.style.left = `${left - rect.left}px`;
+    brushRect.style.width = `${Math.max(Math.abs(x - x0), 1)}px`;
+  });
+
+  const finish = (event) => {
+    if (!dragging || !brushRect) return;
+    dragging = false;
+    const rect = strip.getBoundingClientRect();
+    const px0 = Math.min(Math.max(x0, rect.left), rect.right);
+    const px1 = Math.min(Math.max(event.clientX, rect.left), rect.right);
+    const selLeft = Math.min(px0, px1);
+    const selWidth = Math.abs(px1 - px0);
+    brushRect.remove();
+    const wasDragged = selWidth > 6;
+    if (wasDragged) suppressSegClick = true;
+    setTimeout(() => {
+      suppressSegClick = false;
+    }, 250);
+
+    if (!wasDragged) return; // 视为点击，不缩放
+
+    const a = vStart + ((selLeft - rect.left) / rect.width) * span;
+    const b = vStart + ((selLeft + selWidth - rect.left) / rect.width) * span;
+    const selStart = Math.min(a, b);
+    const selEnd = Math.max(a, b);
+    const selMinutes = (selEnd - selStart) / 60000;
+
+    // 区间过宽（>13h）没有放大意义，过窄（<10min）难以阅读：忽略本次拖选。
+    if (selMinutes < 10 || selMinutes > 780) {
+      renderRibbon(segsAbs, wrap);
+      return;
+    }
+    view.start = Math.round(selStart);
+    view.end = Math.round(selEnd);
+    renderRibbon(segsAbs, wrap);
+  };
+
+  strip.addEventListener('pointerup', finish);
+  strip.addEventListener('pointercancel', (event) => {
+    dragging = false;
+    brushRect?.remove();
+    void event;
+  });
 }
 
 /** 近似模式（旧数据回退）：把每个小时桶内的域名按顺序铺进 24 小时色带。 */
 function renderHours(timeline, wrap) {
-  const colorMap = new Map();
-  let colorCursor = 0;
-  const colorOf = (domain) => {
-    if (!colorMap.has(domain)) {
-      colorMap.set(domain, String((colorCursor % 7) + 1));
-      colorCursor += 1;
-    }
-    return colorMap.get(domain);
-  };
-
-  const segs = [];
+  const segsAbs = [];
   const hours = Object.keys(timeline).sort();
   for (const hour of hours) {
-    const hourStart = Number(hour) * 3600;
+    const hourStart = dayStartMs(currentDate) + Number(hour) * 3600000;
     let offset = hourStart;
     const sites = Object.entries(timeline[hour]).sort((a, b) => b[1] - a[1]);
     for (const [domain, seconds] of sites) {
       if (seconds <= 0) continue;
-      segs.push({ domain, start: offset, len: seconds, color: colorOf(domain) });
-      offset += seconds;
+      segsAbs.push({ domain, start: offset, end: offset + seconds * 1000 });
+      offset += seconds * 1000;
     }
   }
 
-  if (!segs.length) {
+  if (!segsAbs.length) {
     const empty = document.createElement('p');
     empty.className = 'empty';
     empty.textContent = t('timelineEmpty');
     wrap.append(empty);
     return;
   }
-
-  const strip = document.createElement('div');
-  strip.className = 'tl-strip';
-  for (const seg of segs) {
-    const el = document.createElement('span');
-    el.className = 'tl-seg';
-    el.dataset.color = seg.color;
-    el.style.left = `${(seg.start / 86400) * 100}%`;
-    el.style.width = `${Math.max((seg.len / 86400) * 100, 0.15)}%`;
-    const startH = Math.floor(seg.start / 3600);
-    el.title = `${seg.domain} · ${String(startH).padStart(2, '0')} 时段 · ${fmtDuration(seg.len)}`;
-    strip.append(el);
-  }
-  wrap.append(strip);
-  appendAxis(wrap);
-}
-
-function appendAxis(wrap) {
-  const axis = document.createElement('div');
-  axis.className = 'tl-axis';
-  for (let i = 0; i <= 6; i++) {
-    const tick = document.createElement('span');
-    tick.className = 'tl-tick';
-    tick.textContent = `${String(i * 4).padStart(2, '0')}:00`;
-    tick.style.left = `${(i / 6) * 100}%`;
-    axis.append(tick);
-  }
-  wrap.append(axis);
+  renderRibbon(segsAbs, wrap);
 }
 
 function renderSites(day) {
@@ -193,6 +315,8 @@ function renderSites(day) {
 
 function goto(key) {
   currentDate = key;
+  view.start = null;
+  view.end = null;
   history.replaceState(null, '', `timeline.html?date=${key}`);
   render();
 }

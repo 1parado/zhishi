@@ -261,20 +261,15 @@
   flex-shrink: 0;
 }
 
-/* 饼状图：一周七天各用一种颜色（chart-1..5 + 两个淡化变体循环）。 */
-.pie-dot[data-color='1'], .pie-seg[data-color='1'] { background: var(--chart-1); stroke: var(--chart-1); }
-.pie-dot[data-color='2'], .pie-seg[data-color='2'] { background: var(--chart-2); stroke: var(--chart-2); }
-.pie-dot[data-color='3'], .pie-seg[data-color='3'] { background: var(--chart-3); stroke: var(--chart-3); }
-.pie-dot[data-color='4'], .pie-seg[data-color='4'] { background: var(--chart-4); stroke: var(--chart-4); }
-.pie-dot[data-color='5'], .pie-seg[data-color='5'] { background: var(--chart-5); stroke: var(--chart-5); }
-.pie-dot[data-color='6'], .pie-seg[data-color='6'] {
-  background: color-mix(in srgb, var(--chart-1) 45%, var(--card));
-  stroke: color-mix(in srgb, var(--chart-1) 45%, var(--card));
-}
-.pie-dot[data-color='7'], .pie-seg[data-color='7'] {
-  background: color-mix(in srgb, var(--chart-2) 45%, var(--card));
-  stroke: color-mix(in srgb, var(--chart-2) 45%, var(--card));
-}
+/* 饼状图切片颜色与图例共用 shared.css 的 .pie-dot[data-color] 色板 */
+
+.pie-seg[data-color='1'] { stroke: var(--chart-1); }
+.pie-seg[data-color='2'] { stroke: var(--chart-2); }
+.pie-seg[data-color='3'] { stroke: var(--chart-3); }
+.pie-seg[data-color='4'] { stroke: var(--chart-4); }
+.pie-seg[data-color='5'] { stroke: var(--chart-5); }
+.pie-seg[data-color='6'] { stroke: color-mix(in srgb, var(--chart-1) 45%, var(--card)); }
+.pie-seg[data-color='7'] { stroke: color-mix(in srgb, var(--chart-2) 45%, var(--card)); }
 
 /* 时段输入行 */
 
@@ -384,10 +379,6 @@
 
 .schedule-btn[aria-pressed='true'] {
   color: var(--chart-1);
-}
-
-.week-col.is-today .week-bar {
-  background: var(--primary);
 }
 
 .week-label {

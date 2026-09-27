@@ -66,20 +66,73 @@
 
 /* ---------- 24 小时时间轴色带 ---------- */
 
+.tl-strip-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tl-date-chip {
+  font-size: 11px;
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+  width: 42px;
+  flex-shrink: 0;
+  text-align: center;
+}
+
+.tl-strip-main {
+  flex: 1;
+  min-width: 0;
+}
+
 .tl-strip {
   position: relative;
   width: 100%;
-  height: 26px;
-  border-radius: 6px;
+  height: 30px;
+  border-radius: 8px;
   background: var(--muted);
   overflow: hidden;
+  cursor: crosshair;
+  touch-action: none;
 }
 
 .tl-seg {
   position: absolute;
+  top: 3px;
+  height: calc(100% - 6px);
+  min-width: 2px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+/* 重叠会话：上移 2px + 半透明，两条车道可见 */
+.tl-seg.lane2 {
+  top: 5px;
+  height: calc(100% - 10px);
+  opacity: 0.8;
+}
+
+/* brush 拖选矩形 */
+.tl-brush-rect {
+  position: absolute;
   top: 0;
   height: 100%;
-  min-width: 1px;
+  background: color-mix(in srgb, var(--chart-1) 18%, transparent);
+  border-left: 1px solid var(--chart-1);
+  border-right: 1px solid var(--chart-1);
+  pointer-events: none;
+}
+
+.tl-reset {
+  margin-top: 8px;
+}
+
+/* 图例（域名 + 色点） */
+.tl-legend-block {
+  border-top: 1px solid var(--border);
+  margin-top: 16px;
+  padding-top: 12px;
 }
 
 .tl-seg[data-color='1'] { background: var(--chart-1); }
