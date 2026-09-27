@@ -1,4 +1,4 @@
-import { dateKey, fmtDuration, goalVariant, sumSeconds } from '../lib/pure.js';
+import { classifyUrl, dateKey, fmtDuration, goalVariant, sumSeconds } from '../lib/pure.js';
 import { getSettings, saveSettings } from '../lib/settings.js';
 import { getDay } from '../background/store.js';
 import { currentSession } from '../background/tracker.js';
@@ -14,36 +14,47 @@ let liveTimer = null;
 let liveSiteTimeEl = null;
 
 async function render() {
-  const [today, settings, session] = await Promise.all([
+  const [today, settings, session, tabs] = await Promise.all([
     getDay(dateKey()),
     getSettings(),
     currentSession(),
+    chrome.tabs.query({ active: true, lastFocusedWindow: true }).catch(() => []),
   ]);
   cachedSession = session;
   cachedToday = today;
   cachedTodayTotal = sumSeconds(today);
-  renderStatus(session, today);
+  renderStatus(session, today, tabs[0]);
   renderToday(today, settings);
   renderSites(today, session);
   renderSwitches(settings);
 }
 
-function renderStatus(session, today) {
+function renderStatus(session, today, activeTab) {
   const el = $('status');
   if (session?.domain) {
     const live = (today[session.domain] || 0) + (Date.now() - session.startedAt) / 1000;
     el.textContent = `正在记录：${session.domain} · 今日 ${fmtDuration(live)}`;
+  } else if (activeTab && classifyUrl(activeTab.url) === null) {
+    el.textContent = '当前页面不计入统计（浏览器内部页）';
   } else {
     el.textContent = '浏览器不在前台，计时暂停';
   }
 }
 
 // 当前站点与今日总量每秒跳动，让「正在记录」变得可感知。
+let pausedPollCount = 0;
+
 function startTicker() {
   if (liveTimer) return;
   liveTimer = setInterval(() => {
     const session = cachedSession;
-    if (!session?.domain || !cachedToday) return;
+    if (!session?.domain || !cachedToday) {
+      // 暂停状态下每 5 秒重查一次会话，覆盖事件遗漏的边缘情况。
+      pausedPollCount += 1;
+      if (pausedPollCount % 5 === 0) render();
+      return;
+    }
+    pausedPollCount = 0;
     const elapsed = (Date.now() - session.startedAt) / 1000;
 
     const liveSite = (cachedToday[session.domain] || 0) + elapsed;
@@ -153,9 +164,15 @@ function bindSwitches() {
 }
 
 // 数据每分钟落盘、设置即时生效，监听变化保持弹窗实时。
+let sessionRenderTimer = null;
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === 'local' && (changes.settings || Object.keys(changes).some((k) => k.startsWith('d:')))) {
     render();
+  }
+  // 后台重建/清除会话时同步界面——popup 打开瞬间的竞态靠这里兜住。
+  if (area === 'session' && changes.session) {
+    clearTimeout(sessionRenderTimer);
+    sessionRenderTimer = setTimeout(render, 150);
   }
 });
 
