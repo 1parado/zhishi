@@ -148,11 +148,11 @@
   background: var(--chart-1);
 }
 
-/* 折线图 */
+/* 折线图（与柱状图同高：固定 140px，按容器宽度绘制） */
 
 .week-svg {
   width: 100%;
-  height: auto;
+  height: 140px;
   display: block;
 }
 
@@ -188,12 +188,17 @@
   font-weight: 600;
 }
 
-/* 饼状图（环形） */
+/* 饼状图（环形）：直径与柱状/折线的绘图区高度一致 */
 
 .pie-wrap {
   position: relative;
-  width: 168px;
+  width: 148px;
+  height: 148px;
   margin: 0 auto;
+}
+
+.pie-wrap .week-svg {
+  height: 148px;
 }
 
 .pie-center {

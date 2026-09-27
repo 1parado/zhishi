@@ -170,9 +170,10 @@ function renderWeekBar(week, wrap) {
 
 function renderWeekLine(week, wrap) {
   wrap.className = '';
+  // 按容器实际宽度绘制，坐标系与显示像素 1:1，高度与柱状图一致（140px）。
+  const W = Math.max(wrap.clientWidth || 800, 320);
+  const H = 140;
   const max = Math.max(...week.map((d) => d.seconds), 60);
-  const W = 308;
-  const H = 130;
   const bottom = 16;
   const top = 10;
   const todayKey = dateKey();
@@ -608,6 +609,13 @@ function bindInterval(kind, inputId) {
 
 bindInterval('eye', 'eyeInterval');
 bindInterval('sit', 'sitInterval');
+
+// 窗口尺寸变化时重绘当前选项卡（折线图按容器宽度绘制）。
+let resizeTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(renderActiveTab, 200);
+});
 
 // 提醒时段：全天 / 时间段（支持跨零点）。
 for (const seg of document.querySelectorAll('#activeHoursMode .segment')) {
