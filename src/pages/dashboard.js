@@ -377,7 +377,8 @@ function heatTipContent(key) {
 const heatGrid = $('heatmap');
 const heatTip = $('heatTip');
 
-heatGrid.addEventListener('mousemove', (event) => {
+heatGrid?.addEventListener('mousemove', (event) => {
+  if (!heatTip) return;
   const cell = event.target.closest('.heat-cell');
   const data = cell && heatCellData[cell.dataset.date];
   if (!data || data.seconds <= 0) {
@@ -393,11 +394,12 @@ heatGrid.addEventListener('mousemove', (event) => {
   heatTip.style.top = `${event.clientY + 14}px`;
 });
 
-heatGrid.addEventListener('mouseleave', () => {
+heatGrid?.addEventListener('mouseleave', () => {
+  if (!heatTip) return;
   heatTip.hidden = true;
 });
 
-heatGrid.addEventListener('click', (event) => {
+heatGrid?.addEventListener('click', (event) => {
   const cell = event.target.closest('.heat-cell.has-data');
   if (cell) location.href = `timeline.html?date=${cell.dataset.date}`;
 });
