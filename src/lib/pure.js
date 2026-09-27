@@ -40,14 +40,22 @@ export function capChunk(elapsedMs, capMs = 90_000) {
 }
 
 /**
- * 人类可读时长，精确到秒：42 秒 / 5 分 12 秒 / 34 分钟 / 2 小时 18 分。
- * 不足 1 小时不丢秒，1 小时以上按分钟展示。
+ * 人类可读时长，精确到秒。locale='zh'：42 秒 / 5 分 12 秒 / 2 小时 18 分；
+ * locale='en'：42 sec / 5 min 12 sec / 2 hours 18 min（向下取整，不虚报）。
  */
-export function fmtDuration(totalSeconds) {
-  if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) return '0 秒';
+export function fmtDuration(totalSeconds, locale = 'zh') {
+  if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) {
+    return locale === 'en' ? '0 sec' : '0 秒';
+  }
   const h = Math.floor(totalSeconds / 3600);
   const m = Math.floor((totalSeconds % 3600) / 60);
   const s = Math.floor(totalSeconds % 60);
+
+  if (locale === 'en') {
+    if (h > 0) return m > 0 ? `${h} hour${h > 1 ? 's' : ''} ${m} min` : `${h} hour${h > 1 ? 's' : ''}`;
+    if (m > 0) return s > 0 ? `${m} min ${s} sec` : `${m} min`;
+    return `${s} sec`;
+  }
   if (h > 0) return m > 0 ? `${h} 小时 ${m} 分` : `${h} 小时`;
   if (m > 0) return s > 0 ? `${m} 分 ${s} 秒` : `${m} 分钟`;
   return `${s} 秒`;

@@ -1,7 +1,6 @@
 import {
   dateKey,
   filterLimits,
-  fmtDuration,
   isValidTime,
   shortDate,
   shiftDateKey,
@@ -19,7 +18,7 @@ import {
   saveSettings,
   setLimitEnabled,
 } from '../lib/settings.js';
-import { applyI18n, initI18n, refreshLocale, t } from '../lib/i18n.js';
+import { applyI18n, fmtDuration, initI18n, refreshLocale, t } from '../lib/i18n.js';
 import { clearAllData, getAllDays } from '../background/store.js';
 
 const $ = (id) => document.getElementById(id);
@@ -922,6 +921,9 @@ chrome.storage.onChanged.addListener((changes, area) => {
   renderTimer = setTimeout(render, 300);
 });
 
+// 初始化语言（读取保存的偏好）并套用静态文案，再渲染数据。
+await initI18n();
+await applyI18n();
 render();
 
 // 深链支持：右键菜单 / 外部链接可带 ?tab=limits&add=domain，

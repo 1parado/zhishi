@@ -8,7 +8,10 @@
  *   t('key', { n: 1 });          // 同步取词（locale 已缓存）
  *   await applyI18n(document);   // 把 data-i18n* 属性套上译文
  *   refreshLocale('en');         // 设置变化时刷新缓存
+ *   fmtDuration(3600);           // 按当前语言格式化时长
  */
+
+import { fmtDuration as fmtDurationBase } from './pure.js';
 
 const MESSAGES = {
   zh: {
@@ -325,6 +328,16 @@ export async function initI18n(force = false) {
 /** 设置变化后同步缓存。 */
 export function refreshLocale(locale) {
   if (['zh', 'en'].includes(locale)) currentLocale = locale;
+}
+
+/** 当前生效语言（未初始化时按浏览器语言兜底）。 */
+export function getLocale() {
+  return currentLocale ?? browserLocale();
+}
+
+/** 按当前语言格式化时长。 */
+export function fmtDuration(seconds) {
+  return fmtDurationBase(seconds, getLocale());
 }
 
 /** 同步取词。参数用 {name} 占位。 */

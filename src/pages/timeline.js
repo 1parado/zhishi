@@ -1,5 +1,5 @@
-import { dateKey, fmtDuration, shortDate, shiftDateKey, sumSeconds } from '../lib/pure.js';
-import { applyI18n, initI18n, t } from '../lib/i18n.js';
+import { dateKey, shortDate, shiftDateKey, sumSeconds } from '../lib/pure.js';
+import { applyI18n, fmtDuration, initI18n, t } from '../lib/i18n.js';
 import { getSegmentsByDate } from '../lib/idb.js';
 import { getDay, getTimeline } from '../background/store.js';
 

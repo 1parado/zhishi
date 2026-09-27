@@ -1,6 +1,6 @@
-import { classifyUrl, dateKey, fmtDuration, goalVariant, sumSeconds } from '../lib/pure.js';
+import { classifyUrl, dateKey, goalVariant, sumSeconds } from '../lib/pure.js';
 import { getSettings, saveSettings } from '../lib/settings.js';
-import { applyI18n, initI18n, refreshLocale, t } from '../lib/i18n.js';
+import { applyI18n, fmtDuration, initI18n, refreshLocale, t } from '../lib/i18n.js';
 import { getDay } from '../background/store.js';
 import { currentSession } from '../background/tracker.js';
 

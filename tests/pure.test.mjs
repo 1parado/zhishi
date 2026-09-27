@@ -56,6 +56,16 @@ test('fmtDuration 中文时长，精确到秒', () => {
   assert.equal(fmtDuration(3600 + 61), '1 小时 1 分');
 });
 
+test('fmtDuration 英文时长', () => {
+  assert.equal(fmtDuration(0, 'en'), '0 sec');
+  assert.equal(fmtDuration(42, 'en'), '42 sec');
+  assert.equal(fmtDuration(75, 'en'), '1 min 15 sec');
+  assert.equal(fmtDuration(34 * 60, 'en'), '34 min');
+  assert.equal(fmtDuration(3600, 'en'), '1 hour');
+  assert.equal(fmtDuration(2 * 3600, 'en'), '2 hours');
+  assert.equal(fmtDuration(2 * 3600 + 18 * 60, 'en'), '2 hours 18 min');
+});
+
 test('fmtBadge 角标文本', () => {
   assert.equal(fmtBadge(0), '');
   assert.equal(fmtBadge(59), '');

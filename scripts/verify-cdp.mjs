@@ -567,6 +567,30 @@ try {
     `brush 缩放与点击 → 初始刻度 ${brush.t0} / 拖选后首刻度 ${brush.t1} / 重置按钮 ${brush.hasReset} / 重置后 ${brush.t2} / 色块点击打开 ${brush.opened} ${brushOk ? '✓' : '✗'}`
   );
 
+  // 4g. 语言持久化：popup 切 EN 后，直开仪表盘应保持英文（含时长单位）。
+  await withPage(`chrome-extension://${extId}/src/pages/popup.html`, 'popup.html', async (c) => {
+    await evaluate(c, `document.querySelector('#popupLocale .segment[data-locale="en"]').click()`);
+    await sleep(400);
+  });
+  const persist = await withPage(`chrome-extension://${extId}/src/pages/dashboard.html`, 'dashboard.html', async (c) => {
+    const tabs = await evaluate(c, `[...document.querySelectorAll('.tab')].map((t) => t.textContent).join('|')`);
+    const storedLocale = await evaluate(c, `chrome.storage.local.get('settings').then((d) => d.settings.locale)`);
+    const statToday = await evaluate(c, `document.getElementById('statToday').textContent`);
+    return { tabs, storedLocale, statToday };
+  });
+  const persistOk =
+    persist.storedLocale === 'en' &&
+    persist.tabs === 'Overview|Site limits|Wellness|Timing & data|Settings' &&
+    !/[一-龥]/.test(persist.statToday);
+  console.log(
+    `语言持久化 → 存储 ${persist.storedLocale} / 仪表盘标签「${persist.tabs}」/ 今日「${persist.statToday}」 ${persistOk ? '✓' : '✗'}`
+  );
+  // 恢复中文
+  await withPage(`chrome-extension://${extId}/src/pages/popup.html`, 'popup.html', async (c) => {
+    await evaluate(c, `document.querySelector('#popupLocale .segment[data-locale="zh"]').click()`);
+    await sleep(300);
+  });
+
   // 4f. 热力图点击跳转：点击一个有数据的格子应进入对应日期的时间线。
   const heatNav = await withPage(`chrome-extension://${extId}/src/pages/dashboard.html`, 'dashboard.html', async (c) => {
     await evaluate(c, `document.querySelector('.tab[data-tab="overview"]').click()`);
