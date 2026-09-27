@@ -266,6 +266,11 @@ try {
         out.heatColored = !!document.querySelector(
           '.heat-cell[data-level="1"], .heat-cell[data-level="2"], .heat-cell[data-level="3"], .heat-cell[data-level="4"]'
         );
+        // 热力图增强：月份标签、可点击格子、今日卡片
+        out.heatMonths = document.querySelectorAll('.heat-month').length;
+        out.heatCellsHasData = document.querySelectorAll('.heat-cell.has-data').length;
+        out.todayCardClickable = document.getElementById('todayCard')?.dataset !== undefined &&
+          !!document.querySelector('#todayCard');
         // 注入 10 个额外站点，验证排行默认前 7 + 查看更多展开。
         const key = 'd:' + dateKey();
         const day = (await chrome.storage.local.get(key))[key] || {};
@@ -324,7 +329,13 @@ try {
       console.log(
         `i18n + GitHub → 链接 ${chartChecks.githubLink}，图标 ${chartChecks.githubIcon}，EN 标签「${chartChecks.enTab}」，ZH 标签「${chartChecks.zhTab}」 ${i18nOk ? '✓' : '✗'}`
       );
+      console.log(
+        `热力图增强 → 月份标签 ${chartChecks.heatMonths} 个，可点击格子 ${chartChecks.heatCellsHasData} 个 ${chartChecks.heatMonths >= 6 && chartChecks.heatCellsHasData > 0 ? '✓' : '✗'}`
+      );
       await screenshot(c, 'overview-charts.png');
+      // 回到限额选项卡再截图，保证截图内容与文件名一致。
+      await evaluate(c, `document.querySelector('.tab[data-tab="limits"]').click()`);
+      await sleep(300);
       await screenshot(c, 'limits-filter.png');
     }
   );
@@ -360,6 +371,8 @@ try {
 
   // 4c. popup 语言迷你切换：切 EN 后按钮文案应变。
   const popupLocale = await withPage(`chrome-extension://${extId}/src/pages/popup.html`, 'popup.html', async (c) => {
+    const inHead = await evaluate(c, '!!document.querySelector(".popup-head .lang-mini")');
+    console.log(`popup 语言切换器位置 → 头部 ${inHead} ${inHead ? '✓' : '✗'}`);
     await evaluate(c, `document.querySelector('#popupLocale .segment[data-locale="en"]').click()`);
     await sleep(400);
     const enText = await evaluate(c, 'document.getElementById("dashLink").textContent');
@@ -371,6 +384,59 @@ try {
   const localeOk = popupLocale.enText === 'Open dashboard' && popupLocale.zhText === '打开仪表盘';
   console.log(
     `popup 语言切换 ${localeOk ? '✓' : '✗'}（EN → ${popupLocale.enText} / ZH → ${popupLocale.zhText}）`
+  );
+
+  // 4d. 时间线页：种入小时桶 → 渲染 24 小时段与站点条目。
+  const todayStr = new Date().toLocaleDateString('sv-SE');
+  await withPage(`chrome-extension://${extId}/src/pages/popup.html`, 'popup.html', async (c) => {
+    await evaluate(c, `(async () => {
+      const key = 'h:${todayStr}';
+      await chrome.storage.local.set({
+        [key]: {
+          '09': { 'example.com': 1200, 'github.com': 600 },
+          '10': { 'bilibili.com': 900 },
+          '22': { 'linux.do': 300 },
+        },
+      });
+      return true;
+    })()`);
+  });
+
+  const tl = await withPage(
+    `chrome-extension://${extId}/src/pages/timeline.html?date=${todayStr}`,
+    'timeline.html',
+    async (c) => {
+      const rows = await evaluate(c, `document.querySelectorAll('.tl-row').length`);
+      const total = await evaluate(c, 'document.getElementById("tlTotal").textContent');
+      const sites = await evaluate(c, `document.querySelectorAll('#tlSites .top-row').length`);
+      await evaluate(c, `document.getElementById('prevDay').click()`);
+      await sleep(600);
+      const navigated = await evaluate(c, 'location.search');
+      return { rows, total, sites, navigated };
+    }
+  );
+  const tlOk =
+    tl.rows === 3 &&
+    tl.sites >= 4 &&
+    tl.total !== '0 分钟' &&
+    tl.total !== '0 min' &&
+    tl.navigated.includes('date=');
+  console.log(
+    `时间线页 → ${tl.rows} 个小时段（应为 3）/ 当日总时长 ${tl.total}（全天聚合，含演示数据）/ 站点 ${tl.sites} 个，前一天导航 → ${tl.navigated} ${tlOk ? '✓' : '✗'}`
+  );
+
+  // 4e. 热力图点击跳转：点击一个有数据的格子应进入对应日期的时间线。
+  const heatNav = await withPage(`chrome-extension://${extId}/src/pages/dashboard.html`, 'dashboard.html', async (c) => {
+    await evaluate(c, `document.querySelector('.tab[data-tab="overview"]').click()`);
+    await sleep(500);
+    await evaluate(c, `document.querySelector('.heat-cell.has-data').click()`);
+    await sleep(700);
+    return evaluate(c, 'location.href');
+  });
+  console.log(
+    heatNav.includes('timeline.html?date=')
+      ? `热力图点击跳转 ✓ → ${heatNav.split('/').pop()}`
+      : `热力图点击跳转 ✗ → ${heatNav}`
   );
 
   // 5. 拦截页静态截图。

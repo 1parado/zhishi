@@ -401,14 +401,85 @@
 
 /* 热力图 */
 
+.heat-scroll {
+  overflow-x: auto;
+}
+
+.heat-stack {
+  position: relative;
+  display: inline-block;
+  padding-bottom: 22px; /* 底部月份标签的空间 */
+}
+
 .heatmap {
   display: grid;
   grid-auto-flow: column;
   grid-template-rows: repeat(7, 12px);
   grid-auto-columns: 12px;
   gap: 3px;
-  overflow-x: auto;
-  padding-bottom: 6px;
+}
+
+.heat-months {
+  position: relative;
+  height: 16px;
+  margin-top: 6px;
+}
+
+.heat-month {
+  position: absolute;
+  top: 0;
+  font-size: 11px;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+
+.heat-cell.has-data {
+  cursor: pointer;
+}
+
+.heat-tip {
+  position: fixed;
+  z-index: 60;
+  max-width: 240px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 0.12);
+  font-size: 12.5px;
+  line-height: 1.6;
+  pointer-events: none;
+}
+
+.heat-tip .tip-title {
+  font-weight: 650;
+  margin-bottom: 2px;
+}
+
+.heat-tip .tip-line {
+  color: var(--muted-foreground);
+}
+
+.heat-legend {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 10px;
+  font-size: 11px;
+}
+
+.heat-legend .heat-cell {
+  width: 10px;
+  height: 10px;
+}
+
+.stat-clickable {
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.stat-clickable:hover {
+  border-color: var(--chart-1);
 }
 
 .heat-cell {
@@ -433,19 +504,6 @@
 
 .heat-cell[data-level='4'] {
   background: var(--destructive);
-}
-
-.heat-legend {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-top: 10px;
-  font-size: 11px;
-}
-
-.heat-legend .heat-cell {
-  width: 10px;
-  height: 10px;
 }
 
 /* 网站排行（近 7 天） */
@@ -512,35 +570,6 @@
 .limit-toolbar .input {
   flex: 1;
   min-width: 200px;
-}
-
-.segmented {
-  display: flex;
-  gap: 2px;
-  padding: 2px;
-  background: var(--muted);
-  border-radius: calc(var(--radius) - 2px);
-}
-
-.segment {
-  border: none;
-  background: none;
-  padding: 5px 12px;
-  font-size: 13px;
-  border-radius: calc(var(--radius) - 4px);
-  color: var(--muted-foreground);
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.segment:hover {
-  color: var(--foreground);
-}
-
-.segment[aria-pressed='true'] {
-  background: var(--card);
-  color: var(--foreground);
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.06);
 }
 
 .limit-row {

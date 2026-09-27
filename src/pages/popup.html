@@ -9,9 +9,15 @@
   <body>
     <main class="popup">
       <header class="popup-head">
-        <div class="brand">
-          <span class="brand-name">知时</span>
-          <span class="brand-sub" data-i18n="brandSubPopup">注意力与健康</span>
+        <div class="brand-row">
+          <div class="brand">
+            <span class="brand-name">知时</span>
+            <span class="brand-sub" data-i18n="brandSubPopup">注意力与健康</span>
+          </div>
+          <div class="segmented lang-mini" role="group" aria-label="Language" id="popupLocale">
+            <button class="segment" type="button" data-locale="zh">中</button>
+            <button class="segment" type="button" data-locale="en">EN</button>
+          </div>
         </div>
         <p class="status muted" id="status">…</p>
       </header>
@@ -57,10 +63,6 @@
 
       <footer class="popup-foot">
         <a href="dashboard.html" id="dashLink" class="btn btn-outline btn-sm" data-i18n="openDashboard">打开仪表盘</a>
-        <div class="segmented lang-mini" role="group" aria-label="Language" id="popupLocale">
-          <button class="segment" type="button" data-locale="zh">中</button>
-          <button class="segment" type="button" data-locale="en">EN</button>
-        </div>
       </footer>
     </main>
 

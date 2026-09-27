@@ -271,8 +271,11 @@ function appendWeekLabels(wrap, week, todayKey) {
 }
 
 function renderHeatmap(days, todayKey) {
-  const wrap = $('heatmap');
-  wrap.textContent = '';
+  const grid = $('heatmap');
+  const months = $('heatMonths');
+  grid.textContent = '';
+  months.textContent = '';
+  heatCellData = {};
 
   // 对齐到周：以今天所在周的周日为终点，向前铺 53 周。
   const today = new Date(todayKey + 'T00:00:00');
@@ -282,21 +285,118 @@ function renderHeatmap(days, todayKey) {
   for (let i = 0; i < 371; i++) {
     const key = shiftDateKey(end, -i);
     if (key > todayKey) continue; // 最后一周未来日期留空
+    const sites = Object.entries(days[key] || {}).sort((a, b) => b[1] - a[1]);
     const seconds = sumSeconds(days[key]);
     yearTotal += seconds;
-    cells.push({ key, seconds });
+    cells.push({ key, seconds, top: sites.slice(0, 3) });
   }
 
-  for (const cell of cells) {
+  // 生成格子；同一列是同一周（列宽 15px = 12px 格 + 3px 间距）。
+  const monthLabels = [];
+  let lastMonth = -1;
+  cells.forEach((cell, idx) => {
+    const col = Math.floor(idx / 7);
+    const month = Number(cell.key.slice(5, 7));
+    if (month !== lastMonth) {
+      lastMonth = month;
+      const locale = document.documentElement.lang === 'en' ? 'en-US' : 'zh-CN';
+      const label = new Intl.DateTimeFormat(locale, { month: 'short' }).format(
+        new Date(cell.key + 'T00:00:00')
+      );
+      monthLabels.push({ col, label });
+    }
+    heatCellData[cell.key] = { seconds: cell.seconds, top: cell.top };
+
     const el = document.createElement('span');
     el.className = 'heat-cell';
     el.dataset.level = String(usageLevel(cell.seconds));
-    el.title = `${cell.key} · ${fmtDuration(cell.seconds)}`;
-    wrap.append(el);
+    el.dataset.date = cell.key;
+    if (cell.seconds > 0) el.classList.add('has-data');
+    grid.append(el);
+  });
+
+  // 月份标签贴在网格底部、与列对齐；相邻标签过近时跳过。
+  const colWidth = 15;
+  let prevLeft = -100;
+  for (const { col, label } of monthLabels) {
+    const left = col * colWidth;
+    if (left - prevLeft < 36) continue;
+    prevLeft = left;
+    const span = document.createElement('span');
+    span.className = 'heat-month';
+    span.style.left = `${left + 1}px`;
+    span.textContent = label;
+    months.append(span);
   }
 
   $('yearTotal').textContent = t('yearTotal', { time: fmtDuration(yearTotal) });
 }
+
+// 悬停详情卡与点击跳转（事件委托，网格重 build 后依然有效）。
+let heatCellData = {};
+
+function heatTipContent(key) {
+  const data = heatCellData[key] || { seconds: 0, top: [] };
+  const [y, m, d] = key.split('-').map(Number);
+  const locale = document.documentElement.lang === 'en' ? 'en-US' : 'zh-CN';
+  const dateText = new Intl.DateTimeFormat(locale, { month: 'long', day: 'numeric' }).format(
+    new Date(y, m - 1, d)
+  );
+
+  const tip = document.createElement('div');
+  const title = document.createElement('div');
+  title.className = 'tip-title';
+  title.textContent = dateText;
+  const total = document.createElement('div');
+  total.textContent = `${t('totalLabel')}：${fmtDuration(data.seconds)}`;
+  tip.append(title, total);
+  for (const [domain, seconds] of data.top) {
+    const line = document.createElement('div');
+    line.className = 'tip-line';
+    line.textContent = `${domain} · ${fmtDuration(seconds)}`;
+    tip.append(line);
+  }
+  return tip;
+}
+
+const heatGrid = $('heatmap');
+const heatTip = $('heatTip');
+
+heatGrid.addEventListener('mousemove', (event) => {
+  const cell = event.target.closest('.heat-cell');
+  const data = cell && heatCellData[cell.dataset.date];
+  if (!data || data.seconds <= 0) {
+    heatTip.hidden = true;
+    return;
+  }
+  heatTip.textContent = '';
+  heatTip.append(heatTipContent(cell.dataset.date));
+  heatTip.hidden = false;
+  const tipWidth = heatTip.offsetWidth || 200;
+  const left = Math.min(event.clientX + 14, window.innerWidth - tipWidth - 10);
+  heatTip.style.left = `${left}px`;
+  heatTip.style.top = `${event.clientY + 14}px`;
+});
+
+heatGrid.addEventListener('mouseleave', () => {
+  heatTip.hidden = true;
+});
+
+heatGrid.addEventListener('click', (event) => {
+  const cell = event.target.closest('.heat-cell.has-data');
+  if (cell) location.href = `timeline.html?date=${cell.dataset.date}`;
+});
+
+$('todayCard').addEventListener('click', () => {
+  location.href = `timeline.html?date=${dateKey()}`;
+});
+
+$('todayCard').addEventListener('keydown', (event) => {
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault();
+    location.href = `timeline.html?date=${dateKey()}`;
+  }
+});
 
 // 排行展示条数：默认前 7，可展开查看更多。
 const TOP_SITES_DEFAULT = 7;

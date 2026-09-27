@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="shared.css" />
+    <link rel="stylesheet" href="timeline.css" />
+    <title>知时 · 时间线</title>
+  </head>
+  <body>
+    <div class="shell">
+      <header class="tl-head">
+        <nav class="tl-nav" aria-label="日期导航">
+          <button class="btn btn-outline btn-sm" id="prevDay" data-i18n="timelinePrev">前一天</button>
+          <button class="btn btn-outline btn-sm" id="todayBtn" data-i18n="timelineToday">今天</button>
+          <button class="btn btn-outline btn-sm" id="nextDay" data-i18n="timelineNext">后一天</button>
+        </nav>
+        <a class="tl-back" href="dashboard.html" data-i18n="backToDash">返回仪表盘</a>
+      </header>
+
+      <section class="tl-summary">
+        <div>
+          <p class="tl-date num" id="tlDate"></p>
+          <p class="muted" data-i18n="timelineTitle">时间线</p>
+        </div>
+        <div class="tl-total">
+          <span class="num" id="tlTotal">0 分钟</span>
+          <span class="muted" data-i18n="totalLabel">当日总时长</span>
+        </div>
+      </section>
+
+      <section class="card card-pad">
+        <div class="section-head">
+          <h2 class="card-title" data-i18n="timelineByHour">按小时分段</h2>
+          <span class="muted" data-i18n="timelineHint">每小时内的网站与用时</span>
+        </div>
+        <div id="timeline"></div>
+      </section>
+
+      <section class="card card-pad">
+        <div class="section-head">
+          <h2 class="card-title" data-i18n="topSites">主要网站</h2>
+        </div>
+        <div id="tlSites"></div>
+      </section>
+    </div>
+    <script type="module" src="timeline.js"></script>
+  </body>
+</html>

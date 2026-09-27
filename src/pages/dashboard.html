@@ -40,9 +40,10 @@
         <!-- 概览 -->
         <section id="tab-overview" class="panel">
           <div class="stat-row">
-            <div class="card card-pad stat-card">
+            <div class="card card-pad stat-card stat-clickable" id="todayCard" role="link" tabindex="0">
               <p class="card-title" data-i18n="today">今日</p>
               <p class="stat-value num" id="statToday">0 分钟</p>
+              <p class="card-desc" data-i18n="viewTimeline">查看时间线 ↗</p>
             </div>
             <div class="card card-pad stat-card">
               <p class="card-title" data-i18n="last7">近 7 天</p>
@@ -68,7 +69,12 @@
               <h2 class="card-title" data-i18n="pastYear">近一年</h2>
               <span class="muted num" id="yearTotal"></span>
             </div>
-            <div class="heatmap" id="heatmap"></div>
+            <div class="heat-scroll">
+              <div class="heat-stack">
+                <div class="heatmap" id="heatmap"></div>
+                <div class="heat-months" id="heatMonths"></div>
+              </div>
+            </div>
             <div class="heat-legend muted">
               <span data-i18n="heatFew">少</span>
               <span class="heat-cell" data-level="0"></span>
@@ -78,6 +84,7 @@
               <span class="heat-cell" data-level="4"></span>
               <span data-i18n="heatMany">多</span>
             </div>
+            <p class="card-desc" data-i18n="heatHint">点击任意一天，查看它的小时级时间线。</p>
           </div>
 
           <div class="card card-pad">

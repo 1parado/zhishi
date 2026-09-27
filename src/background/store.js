@@ -6,11 +6,21 @@
 import { dateKey } from '../lib/pure.js';
 
 export async function addSeconds(domain, seconds, when = new Date()) {
-  const key = `d:${dateKey(when)}`;
-  const data = await chrome.storage.local.get(key);
-  const day = data[key] || {};
+  const dateStr = dateKey(when);
+  const dayKey = `d:${dateStr}`;
+  const hourKey = `h:${dateStr}`;
+  const hour = String(when.getHours()).padStart(2, '0');
+
+  const data = await chrome.storage.local.get([dayKey, hourKey]);
+  const day = data[dayKey] || {};
   day[domain] = (day[domain] || 0) + seconds;
-  await chrome.storage.local.set({ [key]: day });
+
+  // 小时桶：时间线页用（小时 → 域名 → 秒），与每日聚合同源同量。
+  const hours = data[hourKey] || {};
+  hours[hour] = hours[hour] || {};
+  hours[hour][domain] = (hours[hour][domain] || 0) + seconds;
+
+  await chrome.storage.local.set({ [dayKey]: day, [hourKey]: hours });
   return day;
 }
 
@@ -38,6 +48,13 @@ export async function getGrants() {
   return data[GRANTS_KEY] || {};
 }
 
+/** 某一天的小时桶：{ '08': { domain: seconds }, ... }，无数据返回空对象。 */
+export async function getTimeline(dateStr) {
+  const key = `h:${dateStr}`;
+  const data = await chrome.storage.local.get(key);
+  return data[key] || {};
+}
+
 export async function setGrant(domain, untilMs) {
   const grants = await getGrants();
   grants[domain] = untilMs;
@@ -55,6 +72,8 @@ export async function clearGrant(domain) {
 
 export async function clearAllData() {
   const all = await chrome.storage.local.get(null);
-  const keys = Object.keys(all).filter((k) => k.startsWith('d:') || k === GRANTS_KEY);
+  const keys = Object.keys(all).filter(
+    (k) => k.startsWith('d:') || k.startsWith('h:') || k === GRANTS_KEY
+  );
   if (keys.length) await chrome.storage.local.remove(keys);
 }

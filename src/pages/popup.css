@@ -12,10 +12,15 @@
   gap: 2px;
 }
 
-.brand {
+.brand-row {
   display: flex;
-  align-items: baseline;
-  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.lang-mini {
+  flex-shrink: 0;
 }
 
 .brand-name {
@@ -186,13 +191,4 @@
 .popup-foot a {
   text-decoration: none;
   color: inherit;
-}
-
-.lang-mini {
-  flex-shrink: 0;
-}
-
-.lang-mini .segment {
-  padding: 5px 10px;
-  font-size: 12px;
 }
