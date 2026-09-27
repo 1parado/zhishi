@@ -24,6 +24,10 @@ import { clearAllData, getAllDays } from '../background/store.js';
 
 const $ = (id) => document.getElementById(id);
 
+// 只渲染当前可见的选项卡：数据每分钟刷新一次，
+// 避免每次都重建热力图（371 个节点）等隐藏区域造成卡顿。
+let activeTabName = 'overview';
+
 /* ---------- 选项卡 ---------- */
 
 for (const tab of document.querySelectorAll('.tab')) {
@@ -31,11 +35,31 @@ for (const tab of document.querySelectorAll('.tab')) {
 }
 
 function showTab(name) {
+  activeTabName = name;
   for (const tab of document.querySelectorAll('.tab')) {
     tab.setAttribute('aria-pressed', String(tab.dataset.tab === name));
   }
   for (const panel of document.querySelectorAll('.panel')) {
     panel.hidden = panel.id !== `tab-${name}`;
+  }
+  renderActiveTab();
+}
+
+function renderActiveTab() {
+  if (!latestSettings) return;
+  switch (activeTabName) {
+    case 'overview':
+      renderOverview(latestDays, latestSettings);
+      break;
+    case 'limits':
+      renderLimits(latestSettings);
+      break;
+    case 'health':
+      renderHealth(latestSettings);
+      break;
+    case 'data':
+      renderHeartbeat(latestSettings);
+      break;
   }
 }
 
@@ -90,9 +114,10 @@ function renderWeekChartType(type) {
   }
 }
 
-// 排行范围切换（今日 / 近 7 天）。
+// 排行范围切换（今日 / 近 7 天），切换时收起展开状态。
 for (const segment of document.querySelectorAll('#topSitesRange .segment')) {
   segment.addEventListener('click', () => {
+    topSitesExpanded = false;
     saveSettings({ topSitesRange: segment.dataset.range });
   });
 }
@@ -281,6 +306,11 @@ function renderHeatmap(days, todayKey) {
   $('yearTotal').textContent = `共 ${fmtDuration(yearTotal)}`;
 }
 
+// 排行展示条数：默认前 7，可展开查看更多。
+const TOP_SITES_DEFAULT = 7;
+const TOP_SITES_MAX = 50;
+let topSitesExpanded = false;
+
 function renderTopSites(days, todayKey, range) {
   const wrap = $('topSites');
   wrap.textContent = '';
@@ -299,9 +329,10 @@ function renderTopSites(days, todayKey, range) {
     entries = Object.entries(totals);
   }
   entries.sort((a, b) => b[1] - a[1]);
-  entries = entries.slice(0, 8);
+  const total = entries.length;
+  const shown = topSitesExpanded ? entries.slice(0, TOP_SITES_MAX) : entries.slice(0, TOP_SITES_DEFAULT);
 
-  if (!entries.length) {
+  if (!total) {
     const empty = document.createElement('p');
     empty.className = 'empty';
     empty.textContent = range === 'day' ? '今天还没有记录。' : '近 7 天还没有记录。';
@@ -309,8 +340,8 @@ function renderTopSites(days, todayKey, range) {
     return;
   }
 
-  const max = entries[0][1];
-  for (const [domain, seconds] of entries) {
+  const max = shown[0][1];
+  for (const [domain, seconds] of shown) {
     const row = document.createElement('div');
     row.className = 'top-row';
 
@@ -331,6 +362,20 @@ function renderTopSites(days, todayKey, range) {
 
     row.append(name, track, time);
     wrap.append(row);
+  }
+
+  if (total > TOP_SITES_DEFAULT) {
+    const more = document.createElement('button');
+    more.type = 'button';
+    more.className = 'btn btn-ghost btn-sm top-more';
+    more.textContent = topSitesExpanded ? '收起' : `查看更多（共 ${total} 个站点）`;
+    more.addEventListener('click', () => {
+      topSitesExpanded = !topSitesExpanded;
+      if (latestDays && latestSettings) {
+        renderTopSites(latestDays, dateKey(), latestSettings.topSitesRange);
+      }
+    });
+    wrap.append(more);
   }
 }
 
@@ -707,10 +752,7 @@ async function render() {
   const { days, settings } = await loadAll();
   latestDays = days;
   latestSettings = settings;
-  renderOverview(days, settings);
-  renderLimits(settings);
-  renderHealth(settings);
-  renderHeartbeat(settings);
+  renderActiveTab();
 }
 
 // 后台每分钟落盘，保持页面数据最新。

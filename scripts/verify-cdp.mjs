@@ -266,14 +266,24 @@ try {
         out.heatColored = !!document.querySelector(
           '.heat-cell[data-level="1"], .heat-cell[data-level="2"], .heat-cell[data-level="3"], .heat-cell[data-level="4"]'
         );
+        // 注入 10 个额外站点，验证排行默认前 7 + 查看更多展开。
+        const key = 'd:' + dateKey();
+        const day = (await chrome.storage.local.get(key))[key] || {};
+        for (let i = 1; i <= 10; i++) day['extra' + i + '.com'] = 100 + i;
+        await chrome.storage.local.set({ [key]: day });
+        await new Promise((r) => setTimeout(r, 500));
         // 排行范围：今日第一名的域名应与当日数据一致。
         await saveSettings({ topSitesRange: 'day' });
         await new Promise((r) => setTimeout(r, 400));
         const dayRows = [...document.querySelectorAll('#topSites .top-name')].map((el) => el.textContent);
-        const day = (await chrome.storage.local.get('d:' + dateKey()))['d:' + dateKey()] || {};
         const expectedTop = Object.entries(day).sort((a, b) => b[1] - a[1])[0]?.[0] ?? '';
         out.dayRows = dayRows.length;
         out.dayTopMatches = dayRows[0] === expectedTop && dayRows.length > 0;
+        out.topDefaultSeven = out.dayRows === 7;
+        out.hasMoreBtn = !!document.querySelector('.top-more');
+        document.querySelector('.top-more')?.click();
+        await new Promise((r) => setTimeout(r, 200));
+        out.topExpanded = document.querySelectorAll('#topSites .top-name').length;
         await saveSettings({ topSitesRange: 'week' });
         await new Promise((r) => setTimeout(r, 400));
         out.weekRows = document.querySelectorAll('#topSites .top-name').length;
@@ -281,12 +291,18 @@ try {
       })()`);
       const chartOk =
         chartChecks.line > 0 && chartChecks.pie > 0 && chartChecks.bar === 7 && chartChecks.heatColored;
-      const rangeOk = chartChecks.dayRows > 0 && chartChecks.dayTopMatches && chartChecks.weekRows > 0;
+      const rangeOk =
+        chartChecks.dayRows > 0 &&
+        chartChecks.dayTopMatches &&
+        chartChecks.weekRows > 0 &&
+        chartChecks.topDefaultSeven &&
+        chartChecks.hasMoreBtn &&
+        chartChecks.topExpanded > 7;
       console.log(
         `图表切换 → 折线 ${chartChecks.line} / 饼状 ${chartChecks.pie} / 柱状 ${chartChecks.bar}，热力新配色 ${chartChecks.heatColored} ${chartOk ? '✓' : '✗'}`
       );
       console.log(
-        `排行范围 → 今日 ${chartChecks.dayRows} 条（第一名匹配 ${chartChecks.dayTopMatches}）/ 近 7 天 ${chartChecks.weekRows} 条 ${rangeOk ? '✓' : '✗'}`
+        `排行范围 → 今日默认 ${chartChecks.dayRows} 条（第 7 截断 ${chartChecks.topDefaultSeven} / 有查看更多 ${chartChecks.hasMoreBtn} / 展开后 ${chartChecks.topExpanded} 条）/ 近 7 天 ${chartChecks.weekRows} 条 ${rangeOk ? '✓' : '✗'}`
       );
       await screenshot(c, 'overview-charts.png');
       await screenshot(c, 'limits-filter.png');

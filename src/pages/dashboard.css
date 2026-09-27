@@ -453,6 +453,11 @@
   color: var(--muted-foreground);
 }
 
+.top-more {
+  display: block;
+  margin: 10px auto 0;
+}
+
 /* ---------- 限额 ---------- */
 
 .limit-master {
