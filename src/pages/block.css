@@ -1,0 +1,57 @@
+body {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+}
+
+.block {
+  max-width: 420px;
+  padding: 32px 24px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.block-icon {
+  color: var(--muted-foreground);
+  margin-bottom: 4px;
+}
+
+.block h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 650;
+}
+
+.block-domain {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--chart-1);
+  word-break: break-all;
+}
+
+.block-usage {
+  margin: 0;
+  font-size: 13px;
+}
+
+.block-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.block-actions a {
+  text-decoration: none;
+  color: inherit;
+}
+
+.block-note {
+  margin: 8px 0 0;
+  font-size: 12px;
+}

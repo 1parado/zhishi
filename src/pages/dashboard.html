@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="shared.css" />
+    <link rel="stylesheet" href="dashboard.css" />
+    <title>知时 · 仪表盘</title>
+  </head>
+  <body>
+    <div class="shell">
+      <header class="top">
+        <div class="brand">
+          <span class="brand-name">知时</span>
+          <span class="muted brand-sub">注意力与健康 · 数据仅存本机</span>
+        </div>
+        <nav class="tabs" aria-label="仪表盘分区">
+          <button class="tab" data-tab="overview" aria-pressed="true">概览</button>
+          <button class="tab" data-tab="limits" aria-pressed="false">网站限额</button>
+          <button class="tab" data-tab="health" aria-pressed="false">健康提醒</button>
+          <button class="tab" data-tab="data" aria-pressed="false">计时与数据</button>
+        </nav>
+      </header>
+
+      <main>
+        <!-- 概览 -->
+        <section id="tab-overview" class="panel">
+          <div class="stat-row">
+            <div class="card card-pad stat-card">
+              <div class="stat-head">
+                <p class="card-title">今日</p>
+                <label class="goal-toggle muted">
+                  <input type="checkbox" id="goalEnabled" />
+                  每日目标
+                </label>
+              </div>
+              <p class="stat-value num" id="statToday">0 分钟</p>
+              <div class="goal-line" id="goalLine" hidden>
+                <input class="input num" id="goalMinutes" type="number" min="15" max="1440" step="15" aria-label="每日目标分钟数" />
+                <span class="muted">分钟</span>
+                <span class="muted num" id="goalHint"></span>
+              </div>
+            </div>
+            <div class="card card-pad stat-card">
+              <p class="card-title">近 7 天</p>
+              <p class="stat-value num" id="statWeek">0 分钟</p>
+              <p class="card-desc num" id="statWeekAvg"></p>
+            </div>
+          </div>
+
+          <div class="card card-pad">
+            <div class="section-head">
+              <h2 class="card-title">近 7 天</h2>
+            </div>
+            <div class="week-chart" id="weekChart"></div>
+          </div>
+
+          <div class="card card-pad">
+            <div class="section-head">
+              <h2 class="card-title">近一年</h2>
+              <span class="muted num" id="yearTotal"></span>
+            </div>
+            <div class="heatmap" id="heatmap"></div>
+            <div class="heat-legend muted">
+              <span>少</span>
+              <span class="heat-cell" data-level="0"></span>
+              <span class="heat-cell" data-level="1"></span>
+              <span class="heat-cell" data-level="2"></span>
+              <span class="heat-cell" data-level="3"></span>
+              <span class="heat-cell" data-level="4"></span>
+              <span>多</span>
+            </div>
+          </div>
+
+          <div class="card card-pad">
+            <div class="section-head">
+              <h2 class="card-title">近 7 天网站排行</h2>
+            </div>
+            <div id="topSites"></div>
+          </div>
+        </section>
+
+        <!-- 网站限额 -->
+        <section id="tab-limits" class="panel" hidden>
+          <div class="card card-pad">
+            <div class="limit-master">
+              <div>
+                <h2 class="card-title">网站限额</h2>
+                <p class="card-desc">为指定网站设置每日使用上限，达到后打开该网站会跳转到提醒页，次日自动恢复。</p>
+              </div>
+              <button class="switch" role="switch" id="limitMaster" aria-label="网站限额总开关"></button>
+            </div>
+          </div>
+
+          <form class="card card-pad limit-form" id="limitForm">
+            <input class="input" id="limitDomain" type="text" placeholder="网站域名，如 bilibili.com" required />
+            <input class="input num" id="limitMinutes" type="number" min="5" max="1440" value="30" required aria-label="每日分钟数" />
+            <span class="muted">分钟 / 天</span>
+            <button class="btn btn-sm" type="submit">添加</button>
+          </form>
+
+          <div class="card limit-toolbar">
+            <input class="input" id="limitSearch" type="search" placeholder="按网站名查找…" aria-label="按网站名查找限额" />
+            <div class="segmented" role="group" aria-label="限额筛选条件">
+              <button class="segment" type="button" data-status="all" aria-pressed="true">全部</button>
+              <button class="segment" type="button" data-status="on" aria-pressed="false">启用中</button>
+              <button class="segment" type="button" data-status="off" aria-pressed="false">已停用</button>
+              <button class="segment" type="button" data-status="over" aria-pressed="false">今日已达</button>
+            </div>
+          </div>
+
+          <div class="card" id="limitList"></div>
+        </section>
+
+        <!-- 健康提醒 -->
+        <section id="tab-health" class="panel" hidden>
+          <div class="card card-pad">
+            <div class="limit-master">
+              <div>
+                <h2 class="card-title">提醒时段</h2>
+                <p class="card-desc">护眼与久坐提醒只在所选时段内触发，避免深夜打扰。</p>
+              </div>
+              <div class="segmented" role="group" aria-label="提醒时段模式" id="activeHoursMode">
+                <button class="segment" type="button" data-mode="all" aria-pressed="true">全天</button>
+                <button class="segment" type="button" data-mode="range" aria-pressed="false">时间段</button>
+              </div>
+            </div>
+            <div class="hours-row" id="activeHoursRange" hidden>
+              <input class="input" id="activeFrom" type="time" aria-label="时段开始" />
+              <span class="muted">至</span>
+              <input class="input" id="activeTo" type="time" aria-label="时段结束" />
+              <span class="muted">支持跨零点，如 09:00 至 22:00</span>
+            </div>
+          </div>
+
+          <div class="card card-pad health-card">
+            <div>
+              <h2 class="card-title">护眼提醒</h2>
+              <p class="card-desc">按 20-20-20 法则，定时提醒你望向 6 米外的远处。间隔可设 5–120 分钟。</p>
+            </div>
+            <div class="health-controls">
+              <label class="interval-field">
+                <input class="input num" id="eyeInterval" type="number" min="5" max="120" step="1" aria-label="护眼提醒间隔（分钟）" />
+                <span class="muted">分钟</span>
+              </label>
+              <button class="switch" role="switch" id="eyeSwitch" aria-label="护眼提醒开关"></button>
+            </div>
+          </div>
+
+          <div class="card card-pad health-card">
+            <div>
+              <h2 class="card-title">久坐提醒</h2>
+              <p class="card-desc">定时提醒你起身活动，减少连续久坐。间隔可设 10–240 分钟，人离开电脑时不会打扰。</p>
+            </div>
+            <div class="health-controls">
+              <label class="interval-field">
+                <input class="input num" id="sitInterval" type="number" min="10" max="240" step="1" aria-label="久坐提醒间隔（分钟）" />
+                <span class="muted">分钟</span>
+              </label>
+              <button class="switch" role="switch" id="sitSwitch" aria-label="久坐提醒开关"></button>
+            </div>
+          </div>
+        </section>
+
+        <!-- 计时与数据 -->
+        <section id="tab-data" class="panel" hidden>
+          <div class="card card-pad">
+            <div class="limit-master">
+              <div>
+                <h2 class="card-title">视频心跳</h2>
+                <p class="card-desc">
+                  对以下站点，页面正在播放音视频时持续计时，不受「60 秒无输入视为离开」的闲置判定影响。也可以在视频网站页面右键快速开关。
+                </p>
+              </div>
+              <button class="switch" role="switch" id="heartbeatSwitch" aria-label="视频心跳开关"></button>
+            </div>
+            <div class="chip-row" id="heartbeatSites"></div>
+            <form class="limit-form heartbeat-form" id="heartbeatForm">
+              <input class="input" id="heartbeatDomain" type="text" placeholder="域名，如 youtube.com" required />
+              <button class="btn btn-sm" type="submit">添加站点</button>
+            </form>
+          </div>
+
+          <div class="card card-pad">
+            <h2 class="card-title">导出</h2>
+            <p class="card-desc">按天、按域名导出全部记录。</p>
+            <div class="data-actions">
+              <button class="btn btn-outline btn-sm" id="exportCsv">导出 CSV</button>
+              <button class="btn btn-outline btn-sm" id="exportJson">导出 JSON</button>
+            </div>
+          </div>
+
+          <div class="card card-pad">
+            <h2 class="card-title">清除数据</h2>
+            <p class="card-desc">删除全部使用记录，设置会保留。此操作不可恢复。</p>
+            <div class="data-actions">
+              <button class="btn btn-outline btn-sm" id="clearBtn">清除全部记录</button>
+            </div>
+          </div>
+
+          <p class="privacy muted">
+            所有数据仅保存在本机浏览器中，不上传任何服务器；只记录域名与时长，不记录页面内容。
+          </p>
+        </section>
+      </main>
+    </div>
+    <script type="module" src="dashboard.js"></script>
+  </body>
+</html>

@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="shared.css" />
+    <link rel="stylesheet" href="block.css" />
+    <title>今日限额已用完</title>
+  </head>
+  <body>
+    <main class="block">
+      <div class="block-icon" aria-hidden="true">
+        <svg width="56" height="56" viewBox="0 0 56 56" fill="none">
+          <circle cx="28" cy="28" r="24" stroke="currentColor" stroke-width="3" />
+          <path d="M28 16v12l8 6" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
+        </svg>
+      </div>
+      <h1 id="title">该网站今日限额已用完</h1>
+      <p class="block-domain" id="domain"></p>
+      <p class="muted block-usage num" id="usage"></p>
+      <div class="block-actions">
+        <button class="btn" id="grantBtn">放行 10 分钟</button>
+        <a href="dashboard.html" class="btn btn-outline">去看看统计</a>
+      </div>
+      <p class="muted block-note">明天自动恢复。放行期间会继续正常计时。</p>
+    </main>
+    <script type="module" src="block.js"></script>
+  </body>
+</html>

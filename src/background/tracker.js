@@ -1,0 +1,137 @@
+/**
+ * 计时引擎（事件驱动）。
+ *
+ * 计时口径：标签页活跃 + 浏览器窗口在前台 + 系统非闲置，三者同时满足才计入。
+ * MV3 的 service worker 会被随时杀掉，因此会话状态存放在 storage.session
+ * （整个浏览器会话内存活），每个事件结算上一段时长后立刻重新评估当前标签页。
+ */
+
+import { classifyUrl, capChunk, dateKey, inTimeWindow } from '../lib/pure.js';
+import { getSettings } from '../lib/settings.js';
+import { addSeconds, getDay, getGrants } from './store.js';
+
+const SESSION_KEY = 'session';
+const MAX_CHUNK_MS = 90_000;
+const TICK_DEBOUNCE_MS = 400;
+const HEARTBEAT_FRESH_MS = 90_000;
+
+// domain → 最近一次心跳时间戳。心跳由内容脚本在播放音视频时上报，
+// 仅对用户在设置中标记的站点被采信（noteHeartbeat 里统一把关）。
+const heartbeatDomains = new Map();
+
+let lastTickAt = 0;
+
+function heartbeatFresh(domain) {
+  const ts = heartbeatDomains.get(domain);
+  return typeof ts === 'number' && Date.now() - ts < HEARTBEAT_FRESH_MS;
+}
+
+function pruneHeartbeats(now) {
+  for (const [domain, ts] of heartbeatDomains) {
+    if (now - ts > HEARTBEAT_FRESH_MS) heartbeatDomains.delete(domain);
+  }
+}
+
+/** 内容脚本心跳上报入口：校验设置白名单后登记。 */
+export async function noteHeartbeat(sender) {
+  const domain = classifyUrl(sender?.tab?.url);
+  if (!domain) return;
+  const settings = await getSettings();
+  if (!settings.heartbeat?.enabled) return;
+  if (!settings.heartbeat.sites?.includes(domain)) return;
+  heartbeatDomains.set(domain, Date.now());
+}
+
+/**
+ * 结算上一段会话并重新评估当前标签页。所有标签页 / 窗口 / 闲置事件
+ * 与每分钟兜底闹钟都汇入这里。
+ */
+export async function tick(reason = 'event') {
+  const now = Date.now();
+  if (reason === 'event' && now - lastTickAt < TICK_DEBOUNCE_MS) return;
+  lastTickAt = now;
+  pruneHeartbeats(now);
+
+  const idleState = await chrome.idle.queryState(60);
+  const credited = await settle(idleState, now);
+  await restartSession(idleState);
+  return credited;
+}
+
+/**
+ * 把上一段会话记入当日聚合。
+ * 「锁定」一律暂停；「闲置」时若该站点有心跳（正在播放音视频），视为人在，继续计时。
+ */
+async function settle(idleState, now) {
+  const { [SESSION_KEY]: session } = await chrome.storage.session.get(SESSION_KEY);
+  await chrome.storage.session.remove(SESSION_KEY);
+  if (!session || !session.domain) return 0;
+  if (idleState === 'locked') return 0;
+  if (idleState !== 'active' && !heartbeatFresh(session.domain)) return 0;
+
+  const seconds = Math.floor(capChunk(now - session.startedAt, MAX_CHUNK_MS) / 1000);
+  if (seconds < 1) return 0;
+  await addSeconds(session.domain, seconds);
+  return seconds;
+}
+
+/**
+ * 依据前台窗口的活跃标签页开启新会话。
+ * 拦截判定不受闲置影响（锁屏除外）；只有「人在」（活跃或有心跳）才开新会话。
+ */
+async function restartSession(idleState) {
+  if (idleState === 'locked') return;
+  const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+  const tab = tabs[0];
+  if (!tab || typeof tab.windowId !== 'number') return;
+
+  let win;
+  try {
+    win = await chrome.windows.get(tab.windowId);
+  } catch {
+    return;
+  }
+  if (!win.focused) return;
+
+  const domain = classifyUrl(tab.url);
+  if (!domain) return;
+
+  if (await isBlocked(domain)) {
+    const url = chrome.runtime.getURL(`src/pages/block.html?domain=${encodeURIComponent(domain)}`);
+    if (!tab.url || !tab.url.startsWith(chrome.runtime.getURL(''))) {
+      await chrome.tabs.update(tab.id, { url });
+    }
+    return;
+  }
+
+  if (idleState !== 'active' && !heartbeatFresh(domain)) return;
+
+  await chrome.storage.session.set({
+    [SESSION_KEY]: { tabId: tab.id, windowId: win.id, domain, startedAt: Date.now() },
+  });
+}
+
+/** 该域名今天是否已触达限额或处于时段屏蔽窗口（且未处于放行期）。 */
+export async function isBlocked(domain) {
+  const settings = await getSettings();
+  if (!settings.limitsEnabled) return false;
+  const limit = settings.limits.find((l) => l.enabled && l.domain === domain && l.minutes > 0);
+  if (!limit) return false;
+
+  const grants = await getGrants();
+  if ((grants[domain] || 0) > Date.now()) return false;
+
+  // 时段屏蔽：窗口内直接拦截，支持跨零点。
+  if (limit.schedule && inTimeWindow(new Date(), limit.schedule.from, limit.schedule.to)) {
+    return true;
+  }
+
+  const today = await getDay(dateKey());
+  return (today[domain] || 0) >= limit.minutes * 60;
+}
+
+/** 当前正在计时的会话（popup 显示「正在记录」用）。 */
+export async function currentSession() {
+  const { [SESSION_KEY]: session } = await chrome.storage.session.get(SESSION_KEY);
+  return session || null;
+}

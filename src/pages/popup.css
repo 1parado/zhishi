@@ -1,0 +1,187 @@
+.popup {
+  width: 380px;
+  padding: 20px 20px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.popup-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.brand {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.brand-name {
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.brand-sub {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+.status {
+  margin: 0;
+  font-size: 12px;
+}
+
+/* ---------- 今日用量 ---------- */
+
+.today {
+  display: flex;
+  justify-content: center;
+  padding: 6px 0 2px;
+}
+
+.today-ring {
+  position: relative;
+  width: 92px;
+  height: 92px;
+}
+
+.ring-track {
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 7;
+}
+
+.ring-value {
+  fill: none;
+  stroke: var(--chart-1);
+  stroke-width: 7;
+  stroke-linecap: round;
+  stroke-dasharray: 257.6;
+  stroke-dashoffset: 257.6;
+  transform: rotate(-90deg);
+  transform-origin: center;
+  transition: stroke-dashoffset 0.5s ease-out, stroke 0.3s;
+}
+
+.ring-value[data-variant='near'] {
+  stroke: var(--warning);
+}
+
+.ring-value[data-variant='over'] {
+  stroke: var(--destructive);
+}
+
+.ring-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+}
+
+.today-big {
+  font-size: 17px;
+  font-weight: 650;
+}
+
+.ring-caption {
+  font-size: 10px;
+}
+
+.today-plain {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.today-plain .muted {
+  font-size: 12px;
+}
+
+/* ---------- 网站排行 ---------- */
+
+.section-label {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  letter-spacing: 0.02em;
+}
+
+.site-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 10px;
+  align-items: baseline;
+  padding: 4px 0;
+}
+
+.site-name {
+  font-size: 13px;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.site-time {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+.site-row .bar-track {
+  grid-column: 1 / -1;
+}
+
+.sites .empty {
+  padding: 10px 0;
+  text-align: left;
+}
+
+/* ---------- 开关行 ---------- */
+
+.toggles {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: 4px 0;
+}
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 0;
+}
+
+.toggle-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.toggle-sub {
+  font-size: 12px;
+}
+
+/* ---------- 底部 ---------- */
+
+.popup-foot {
+  display: flex;
+}
+
+.popup-foot .btn {
+  flex: 1;
+}
+
+.popup-foot a {
+  text-decoration: none;
+  color: inherit;
+}

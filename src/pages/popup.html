@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="shared.css" />
+    <link rel="stylesheet" href="popup.css" />
+    <title>知时</title>
+  </head>
+  <body>
+    <main class="popup">
+      <header class="popup-head">
+        <div class="brand">
+          <span class="brand-name">知时</span>
+          <span class="brand-sub">注意力与健康</span>
+        </div>
+        <p class="status muted" id="status">…</p>
+      </header>
+
+      <section class="today" id="todaySection">
+        <div class="today-ring" id="ringWrap" hidden>
+          <svg width="92" height="92" viewBox="0 0 92 92" aria-hidden="true">
+            <circle class="ring-track" cx="46" cy="46" r="41" />
+            <circle class="ring-value" id="ringValue" cx="46" cy="46" r="41" />
+          </svg>
+          <div class="ring-center">
+            <span class="today-big num" id="todayTotal">0 分钟</span>
+            <span class="ring-caption muted" id="ringCaption"></span>
+          </div>
+        </div>
+        <div class="today-plain" id="plainWrap" hidden>
+          <span class="today-big num" id="todayTotalPlain">0 分钟</span>
+          <span class="muted">今日使用</span>
+        </div>
+      </section>
+
+      <section class="sites">
+        <h2 class="section-label">网站排行</h2>
+        <div id="siteList"></div>
+      </section>
+
+      <section class="toggles">
+        <div class="toggle-row">
+          <div class="toggle-text">
+            <span id="eyeLabel">护眼提醒</span>
+            <span class="muted toggle-sub" id="eyeSub">每 20 分钟望向远处</span>
+          </div>
+          <button class="switch" role="switch" id="eyeSwitch" aria-label="护眼提醒"></button>
+        </div>
+        <div class="toggle-row">
+          <div class="toggle-text">
+            <span id="limitLabel">网站限额</span>
+            <span class="muted toggle-sub" id="limitSub">达到限额后拦截</span>
+          </div>
+          <button class="switch" role="switch" id="limitSwitch" aria-label="网站限额"></button>
+        </div>
+      </section>
+
+      <footer class="popup-foot">
+        <a href="dashboard.html" id="dashLink" class="btn btn-outline btn-sm">打开仪表盘</a>
+      </footer>
+    </main>
+
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>
