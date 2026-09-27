@@ -44,6 +44,15 @@ export async function setGrant(domain, untilMs) {
   await chrome.storage.local.set({ [GRANTS_KEY]: grants });
 }
 
+/** 清除某域名的放行（其对应限额被删除时调用，避免放行残留到新建的限额上）。 */
+export async function clearGrant(domain) {
+  const grants = await getGrants();
+  if (domain in grants) {
+    delete grants[domain];
+    await chrome.storage.local.set({ [GRANTS_KEY]: grants });
+  }
+}
+
 export async function clearAllData() {
   const all = await chrome.storage.local.get(null);
   const keys = Object.keys(all).filter((k) => k.startsWith('d:') || k === GRANTS_KEY);

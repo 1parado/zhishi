@@ -346,6 +346,42 @@ try {
   const url = navTab?.url ?? finalUrl ?? '(未知)';
   console.log(url === expected ? `限额拦截生效 ✓ → ${url}` : `限额拦截未生效 ✗ → ${url}`);
 
+  // 7. 复杂限额操作序列：限额 → 超限 → 放行 10 分钟 → 删除限额 → 新增 6 分钟限额。
+  //    期望：删除时放行记录一并作废，新限额因今日已用 10 分钟 ≥ 6 分钟而立即拦截。
+  const seqResult = await withPage(`chrome-extension://${extId}/src/pages/popup.html`, 'popup.html', async (c) =>
+    evaluate(c, `(async () => {
+      const { saveSettings, removeLimit, addLimit } = await import(chrome.runtime.getURL('src/lib/settings.js'));
+      const { setGrant, getGrants } = await import(chrome.runtime.getURL('src/background/store.js'));
+      const { isBlocked } = await import(chrome.runtime.getURL('src/background/tracker.js'));
+      const key = 'd:${todayKey}';
+      await saveSettings({
+        limitsEnabled: true,
+        seq: 1,
+        limits: [{ id: 1, domain: 'bilibili.com', minutes: 5, enabled: true }],
+      });
+      await chrome.storage.local.set({ [key]: { 'bilibili.com': 600 } });
+
+      const blocked1 = await isBlocked('bilibili.com'); // 超 5 分钟限额 → true
+      await setGrant('bilibili.com', Date.now() + 600_000); // 放行 10 分钟
+      const blocked2 = await isBlocked('bilibili.com'); // 放行期内 → false
+      await removeLimit(1); // 删除限额
+      const grantsAfterRemove = await getGrants(); // 放行应一并作废
+      await addLimit('bilibili.com', 6); // 新增 6 分钟限额
+      const blocked3 = await isBlocked('bilibili.com'); // 已用 600s ≥ 360s → 立即 true
+      return { blocked1, blocked2, grantsAfterRemove, blocked3 };
+    })()`)
+  );
+  const seqOk =
+    seqResult.blocked1 === true &&
+    seqResult.blocked2 === false &&
+    Object.keys(seqResult.grantsAfterRemove).length === 0 &&
+    seqResult.blocked3 === true;
+  console.log(
+    `复杂限额序列 → 初始拦截 ${seqResult.blocked1} / 放行后 ${seqResult.blocked2} / 删除后放行残留 ${JSON.stringify(
+      seqResult.grantsAfterRemove
+    )} / 新 6 分钟限额拦截 ${seqResult.blocked3} ${seqOk ? '✓' : '✗'}`
+  );
+
   console.log('\n全部验证完成，截图位于 verify/ 目录');
 } finally {
   browser.kill();

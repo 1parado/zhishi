@@ -5,6 +5,8 @@
 const SETTINGS_KEY = 'settings';
 
 import { isValidTime } from './pure.js';
+// 放行记录随限额存亡：删除限额时需要一并清除（store.js 不反向依赖本模块，无循环）。
+import { clearGrant } from '../background/store.js';
 
 export const DEFAULT_SETTINGS = {
   // 每日总目标（分钟）。enabled 为 false 时 UI 只显示用量。
@@ -64,7 +66,15 @@ export async function addLimit(domain, minutes) {
 
 export async function removeLimit(id) {
   const current = await getSettings();
-  return saveSettings({ limits: current.limits.filter((l) => l.id !== id) });
+  const removed = current.limits.find((l) => l.id === id);
+  const next = await saveSettings({ limits: current.limits.filter((l) => l.id !== id) });
+
+  // 该域名已无启用的限额时，其放行记录一并作废，
+  // 否则「放行 10 分钟 → 删除 → 新增更严限额」会让新限额静默失效到放行过期。
+  if (removed && !next.limits.some((l) => l.enabled && l.domain === removed.domain)) {
+    await clearGrant(removed.domain);
+  }
+  return next;
 }
 
 export async function setLimitEnabled(id, enabled) {
