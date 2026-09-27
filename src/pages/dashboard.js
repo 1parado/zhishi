@@ -2,7 +2,6 @@ import {
   dateKey,
   filterLimits,
   fmtDuration,
-  goalVariant,
   isValidTime,
   shortDate,
   shiftDateKey,
@@ -61,6 +60,9 @@ function renderActiveTab() {
     case 'data':
       renderHeartbeat(latestSettings);
       break;
+    case 'settings':
+      renderSettings(latestSettings);
+      break;
   }
 }
 
@@ -81,18 +83,6 @@ function renderOverview(days, settings) {
   const weekTotal = week.reduce((acc, d) => acc + d.seconds, 0);
 
   $('statToday').textContent = fmtDuration(todayTotal);
-  const goalSeconds = settings.goal.enabled ? settings.goal.dailyMinutes * 60 : 0;
-  $('goalEnabled').checked = settings.goal.enabled;
-  $('goalLine').hidden = !settings.goal.enabled;
-  $('goalMinutes').value = String(settings.goal.dailyMinutes);
-  $('goalHint').textContent = settings.goal.enabled
-    ? {
-        ok: t('goalOk'),
-        near: t('goalNear'),
-        over: t('goalOver'),
-        none: '',
-      }[goalVariant(todayTotal, goalSeconds)]
-    : '';
 
   $('statWeek').textContent = fmtDuration(weekTotal);
   $('statWeekAvg').textContent = t('dailyAvg', { time: fmtDuration(Math.round(weekTotal / 7)) });
@@ -642,10 +632,18 @@ function saveActiveHours() {
 $('activeFrom').addEventListener('change', saveActiveHours);
 $('activeTo').addEventListener('change', saveActiveHours);
 
-/* ---------- 每日目标 ---------- */
+/* ---------- 设置 ---------- */
 
-$('goalEnabled').addEventListener('change', (event) => {
-  saveSettings({ goal: { enabled: event.target.checked } });
+async function renderSettings(settings) {
+  $('goalSwitch').setAttribute('aria-checked', String(settings.goal.enabled));
+  $('goalLine').hidden = !settings.goal.enabled;
+  $('goalMinutes').value = String(settings.goal.dailyMinutes);
+  renderLocaleSwitch(await initI18n());
+}
+
+$('goalSwitch').addEventListener('click', async () => {
+  const settings = await getSettings();
+  await saveSettings({ goal: { enabled: !settings.goal.enabled } });
 });
 
 $('goalMinutes').addEventListener('change', (event) => {

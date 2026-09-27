@@ -287,9 +287,10 @@ try {
         await saveSettings({ topSitesRange: 'week' });
         await new Promise((r) => setTimeout(r, 400));
         out.weekRows = document.querySelectorAll('#topSites .top-name').length;
-        // GitHub 链接与图标
+        // GitHub 链接与图标 + Settings 选项卡
         out.githubLink = document.querySelector('.github-link')?.href ?? '';
         out.githubIcon = !!document.querySelector('.github-link svg');
+        out.settingsLocaleSwitch = !!document.querySelector('#tab-settings #localeSwitch');
         // 语言切换：切到 English 后选项卡文案应变。
         await saveSettings({ locale: 'en' });
         await new Promise((r) => setTimeout(r, 500));
@@ -311,8 +312,9 @@ try {
       const i18nOk =
         chartChecks.githubLink === 'https://github.com/1parado/zhishi' &&
         chartChecks.githubIcon &&
-        chartChecks.enTab === 'Overview|Site limits|Wellness|Timing & data' &&
-        chartChecks.zhTab === '概览|网站限额|健康提醒|计时与数据';
+        chartChecks.settingsLocaleSwitch &&
+        chartChecks.enTab === 'Overview|Site limits|Wellness|Timing & data|Settings' &&
+        chartChecks.zhTab === '概览|网站限额|健康提醒|计时与数据|设置';
       console.log(
         `图表切换 → 折线 ${chartChecks.line} / 饼状 ${chartChecks.pie} / 柱状 ${chartChecks.bar}，热力新配色 ${chartChecks.heatColored} ${chartOk ? '✓' : '✗'}`
       );
@@ -354,6 +356,21 @@ try {
     !ticks.t1.includes('正在记录') && ticks.t2.includes('正在记录') && ticks.t2 !== ticks.t3;
   console.log(
     `popup 实时秒表 ${ticksOk ? '✓' : '✗'}（${ticks.t1} → ${ticks.t2} → ${ticks.t3}）`
+  );
+
+  // 4c. popup 语言迷你切换：切 EN 后按钮文案应变。
+  const popupLocale = await withPage(`chrome-extension://${extId}/src/pages/popup.html`, 'popup.html', async (c) => {
+    await evaluate(c, `document.querySelector('#popupLocale .segment[data-locale="en"]').click()`);
+    await sleep(400);
+    const enText = await evaluate(c, 'document.getElementById("dashLink").textContent');
+    await evaluate(c, `document.querySelector('#popupLocale .segment[data-locale="zh"]').click()`);
+    await sleep(400);
+    const zhText = await evaluate(c, 'document.getElementById("dashLink").textContent');
+    return { enText, zhText };
+  });
+  const localeOk = popupLocale.enText === 'Open dashboard' && popupLocale.zhText === '打开仪表盘';
+  console.log(
+    `popup 语言切换 ${localeOk ? '✓' : '✗'}（EN → ${popupLocale.enText} / ZH → ${popupLocale.zhText}）`
   );
 
   // 5. 拦截页静态截图。

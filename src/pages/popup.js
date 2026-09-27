@@ -15,6 +15,8 @@ let liveTimer = null;
 let liveSiteTimeEl = null;
 
 async function render() {
+  await initI18n();
+  renderLocaleSwitch(await initI18n());
   const [today, settings, session, tabs] = await Promise.all([
     getDay(dateKey()),
     getSettings(),
@@ -180,6 +182,22 @@ chrome.storage.onChanged.addListener(async (changes, area) => {
     sessionRenderTimer = setTimeout(render, 150);
   }
 });
+
+// 语言迷你切换：立即生效并持久化。
+function renderLocaleSwitch(locale) {
+  for (const segment of document.querySelectorAll('#popupLocale .segment')) {
+    segment.setAttribute('aria-pressed', String(segment.dataset.locale === locale));
+  }
+}
+
+for (const segment of document.querySelectorAll('#popupLocale .segment')) {
+  segment.addEventListener('click', async () => {
+    refreshLocale(segment.dataset.locale);
+    await applyI18n();
+    render();
+    await saveSettings({ locale: segment.dataset.locale });
+  });
+}
 
 bindSwitches();
 // 打开瞬间通知后台立即结算续上会话：焦点切换事件可能抢先清掉会话。

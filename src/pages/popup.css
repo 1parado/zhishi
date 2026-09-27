@@ -175,6 +175,8 @@
 
 .popup-foot {
   display: flex;
+  gap: 8px;
+  align-items: center;
 }
 
 .popup-foot .btn {
@@ -184,4 +186,13 @@
 .popup-foot a {
   text-decoration: none;
   color: inherit;
+}
+
+.lang-mini {
+  flex-shrink: 0;
+}
+
+.lang-mini .segment {
+  padding: 5px 10px;
+  font-size: 12px;
 }
