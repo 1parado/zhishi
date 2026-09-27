@@ -74,7 +74,7 @@ function renderOverview(days, settings) {
 
   renderWeekChart(week, settings.weekChart);
   renderHeatmap(days, todayKey);
-  renderTopSites(days, todayKey);
+  renderTopSites(days, todayKey, settings.topSitesRange);
 }
 
 // 图表形式切换，偏好持久化到设置。
@@ -87,6 +87,19 @@ for (const segment of document.querySelectorAll('#weekChartType .segment')) {
 function renderWeekChartType(type) {
   for (const segment of document.querySelectorAll('#weekChartType .segment')) {
     segment.setAttribute('aria-pressed', String(segment.dataset.type === type));
+  }
+}
+
+// 排行范围切换（今日 / 近 7 天）。
+for (const segment of document.querySelectorAll('#topSitesRange .segment')) {
+  segment.addEventListener('click', () => {
+    saveSettings({ topSitesRange: segment.dataset.range });
+  });
+}
+
+function renderTopSitesRangeType(range) {
+  for (const segment of document.querySelectorAll('#topSitesRange .segment')) {
+    segment.setAttribute('aria-pressed', String(segment.dataset.range === range));
   }
 }
 
@@ -268,23 +281,30 @@ function renderHeatmap(days, todayKey) {
   $('yearTotal').textContent = `共 ${fmtDuration(yearTotal)}`;
 }
 
-function renderTopSites(days, todayKey) {
+function renderTopSites(days, todayKey, range) {
   const wrap = $('topSites');
   wrap.textContent = '';
 
-  const week = weekSeries(days, todayKey, 7);
-  const totals = {};
-  for (const day of week) {
-    for (const [domain, seconds] of Object.entries(days[day.key] || {})) {
-      totals[domain] = (totals[domain] || 0) + seconds;
+  let entries;
+  if (range === 'day') {
+    entries = Object.entries(days[todayKey] || {});
+  } else {
+    const week = weekSeries(days, todayKey, 7);
+    const totals = {};
+    for (const day of week) {
+      for (const [domain, seconds] of Object.entries(days[day.key] || {})) {
+        totals[domain] = (totals[domain] || 0) + seconds;
+      }
     }
+    entries = Object.entries(totals);
   }
-  const entries = Object.entries(totals).sort((a, b) => b[1] - a[1]).slice(0, 8);
+  entries.sort((a, b) => b[1] - a[1]);
+  entries = entries.slice(0, 8);
 
   if (!entries.length) {
     const empty = document.createElement('p');
     empty.className = 'empty';
-    empty.textContent = '还没有记录。正常浏览网页后，这里会展示最常用的网站。';
+    empty.textContent = range === 'day' ? '今天还没有记录。' : '近 7 天还没有记录。';
     wrap.append(empty);
     return;
   }

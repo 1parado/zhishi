@@ -78,7 +78,11 @@
 
           <div class="card card-pad">
             <div class="section-head">
-              <h2 class="card-title">近 7 天网站排行</h2>
+              <h2 class="card-title">网站排行</h2>
+              <div class="segmented" role="group" aria-label="排行范围" id="topSitesRange">
+                <button class="segment" type="button" data-range="day" aria-pressed="false">今日</button>
+                <button class="segment" type="button" data-range="week" aria-pressed="true">近 7 天</button>
+              </div>
             </div>
             <div id="topSites"></div>
           </div>

@@ -13,6 +13,8 @@ export const DEFAULT_SETTINGS = {
   goal: { enabled: false, dailyMinutes: 240 },
   // 近 7 天图表形式：bar 柱状 / line 折线 / pie 饼状。
   weekChart: 'bar',
+  // 网站排行范围：day 今日 / week 近 7 天。
+  topSitesRange: 'week',
   // 网站限额总开关 + 逐条规则：
   // { id, domain, minutes, enabled, schedule?: { from, to } }
   // schedule 存在时，该时间窗内直接拦截（支持跨零点），不受每日分钟数影响。
@@ -108,6 +110,7 @@ function normalize(raw) {
   if (hours.mode !== 'range') hours.mode = 'all';
 
   if (!['bar', 'line', 'pie'].includes(merged.weekChart)) merged.weekChart = 'bar';
+  if (!['day', 'week'].includes(merged.topSitesRange)) merged.topSitesRange = 'week';
 
   merged.heartbeat = {
     enabled: merged.heartbeat?.enabled !== false,

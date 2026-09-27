@@ -252,9 +252,10 @@ try {
       })()`);
       console.log(`时段屏蔽编辑器 → ${schedOpen ? '✓' : '✗'}`);
 
-      // 近 7 天图表形式切换 + 热力图语义配色。
+      // 近 7 天图表形式切换 + 热力图语义配色 + 排行范围切换。
       const chartChecks = await evaluate(c, `(async () => {
         const { saveSettings } = await import(chrome.runtime.getURL('src/lib/settings.js'));
+        const { dateKey } = await import(chrome.runtime.getURL('src/lib/pure.js'));
         document.querySelector('.tab[data-tab="overview"]').click();
         const out = {};
         for (const [type, selector] of [['line', '.week-line'], ['pie', '.pie-seg'], ['bar', '.week-bar']]) {
@@ -265,12 +266,27 @@ try {
         out.heatColored = !!document.querySelector(
           '.heat-cell[data-level="1"], .heat-cell[data-level="2"], .heat-cell[data-level="3"], .heat-cell[data-level="4"]'
         );
+        // 排行范围：今日第一名的域名应与当日数据一致。
+        await saveSettings({ topSitesRange: 'day' });
+        await new Promise((r) => setTimeout(r, 400));
+        const dayRows = [...document.querySelectorAll('#topSites .top-name')].map((el) => el.textContent);
+        const day = (await chrome.storage.local.get('d:' + dateKey()))['d:' + dateKey()] || {};
+        const expectedTop = Object.entries(day).sort((a, b) => b[1] - a[1])[0]?.[0] ?? '';
+        out.dayRows = dayRows.length;
+        out.dayTopMatches = dayRows[0] === expectedTop && dayRows.length > 0;
+        await saveSettings({ topSitesRange: 'week' });
+        await new Promise((r) => setTimeout(r, 400));
+        out.weekRows = document.querySelectorAll('#topSites .top-name').length;
         return out;
       })()`);
       const chartOk =
         chartChecks.line > 0 && chartChecks.pie > 0 && chartChecks.bar === 7 && chartChecks.heatColored;
+      const rangeOk = chartChecks.dayRows > 0 && chartChecks.dayTopMatches && chartChecks.weekRows > 0;
       console.log(
         `图表切换 → 折线 ${chartChecks.line} / 饼状 ${chartChecks.pie} / 柱状 ${chartChecks.bar}，热力新配色 ${chartChecks.heatColored} ${chartOk ? '✓' : '✗'}`
+      );
+      console.log(
+        `排行范围 → 今日 ${chartChecks.dayRows} 条（第一名匹配 ${chartChecks.dayTopMatches}）/ 近 7 天 ${chartChecks.weekRows} 条 ${rangeOk ? '✓' : '✗'}`
       );
       await screenshot(c, 'overview-charts.png');
       await screenshot(c, 'limits-filter.png');
