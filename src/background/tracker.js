@@ -42,6 +42,16 @@ export async function noteHeartbeat(sender) {
   heartbeatDomains.set(domain, Date.now());
 }
 
+/** 诊断用：当前新鲜心跳（域名 → 距上次心跳的秒数）。 */
+export function getHeartbeatState(now = Date.now()) {
+  const out = {};
+  for (const [domain, ts] of heartbeatDomains) {
+    const age = Math.round((now - ts) / 1000);
+    if (age <= HEARTBEAT_FRESH_MS / 1000) out[domain] = age;
+  }
+  return out;
+}
+
 /**
  * 结算上一段会话并重新评估当前标签页。所有标签页 / 窗口 / 闲置事件
  * 与每分钟兜底闹钟都汇入这里。

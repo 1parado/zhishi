@@ -1,6 +1,6 @@
 /**
  * 视频心跳内容脚本。
- * 仅当页面可见且有音视频正在播放时，向后台发送心跳信号；
+ * 页面有音视频正在播放（无论可见、画中画还是后台窗口）就周期性向后台发心跳；
  * 是否采信由后台按用户标记的站点白名单决定（见 background/tracker.js）。
  * 不读取、不上报任何页面内容。
  */
@@ -12,8 +12,6 @@ function hasPlayingMedia() {
   return false;
 }
 
-let lastPlaying = false;
-
 function send() {
   try {
     // 后台可能未就绪或已被卸载（扩展更新中），失败静默。
@@ -23,18 +21,21 @@ function send() {
   }
 }
 
+let lastPlaying = false;
+
 function report() {
-  const playing = document.visibilityState === 'visible' && hasPlayingMedia();
+  const playing = hasPlayingMedia();
   if (playing && !lastPlaying) send();
   lastPlaying = playing;
 }
 
 // 播放状态变化即时上报（捕获阶段，覆盖各播放器自定义控件）。
-for (const event of ['play', 'pause', 'ended', 'visibilitychange']) {
+for (const event of ['play', 'pause', 'ended']) {
   document.addEventListener(event, report, true);
 }
 
 // 播放期间周期性确认，防止 service worker 休眠丢失状态。
 setInterval(() => {
-  if (document.visibilityState === 'visible' && hasPlayingMedia()) send();
+  if (hasPlayingMedia()) send();
 }, 20_000);
+

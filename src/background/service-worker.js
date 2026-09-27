@@ -6,7 +6,7 @@
 import { ensureAlarms } from './health.js';
 import { ensureMenu } from './menu.js';
 import { updateBadge } from './badge.js';
-import { noteHeartbeat, tick } from './tracker.js';
+import { getHeartbeatState, noteHeartbeat, tick } from './tracker.js';
 
 chrome.idle.setDetectionInterval(60);
 
@@ -55,6 +55,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
   if (msg && msg.type === 'zhishi-heartbeat') {
     noteHeartbeat(sender);
+  }
+  if (msg && msg.type === 'debug-heartbeats') {
+    sendResponse({ heartbeats: getHeartbeatState() });
   }
   return false;
 });

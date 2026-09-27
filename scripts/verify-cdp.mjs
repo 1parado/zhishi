@@ -271,6 +271,49 @@ try {
     }
   );
 
+  // 5b. 视频心跳端到端：本地自动播放视频页 → 心跳应被后台登记。
+  //     前置：python -m http.server 8123 托管 %TEMP%\zhishi-video\index.html。
+  const videoServerUp = await fetch('http://127.0.0.1:8123/', { signal: AbortSignal.timeout(2000) })
+    .then((r) => r.ok)
+    .catch(() => false);
+  if (!videoServerUp) {
+    console.log('（跳过心跳实测：本地 8123 视频服务未启动）');
+  } else {
+    await withPage(`chrome-extension://${extId}/src/pages/popup.html`, 'popup.html', async (c) => {
+      await evaluate(c, `(async () => {
+        const { saveSettings } = await import(chrome.runtime.getURL('src/lib/settings.js'));
+        await saveSettings({ heartbeat: { enabled: true, sites: ['127.0.0.1'] } });
+        return true;
+      })()`);
+    });
+
+    const videoRes = await fetch(`http://127.0.0.1:${PORT}/json/new?url=about:blank`, { method: 'PUT' });
+    const videoTarget = await videoRes.json();
+    const vc = connect(videoTarget.webSocketDebuggerUrl);
+    await vc.opened;
+    await vc.send('Page.enable');
+    await vc.send('Page.navigate', { url: 'http://127.0.0.1:8123/' });
+    await until(async () => {
+      const { result } = await vc.send('Runtime.evaluate', {
+        expression: 'location.href.includes("8123") && document.readyState',
+        returnByValue: true,
+      });
+      if (result.value !== 'complete') throw new Error(String(result.value));
+      return true;
+    }, 15_000, '视频页加载');
+    await sleep(27_000); // 覆盖播放事件上报 + 一次 20 秒周期心跳
+
+    const hb = await withPage(`chrome-extension://${extId}/src/pages/popup.html`, 'popup.html', async (c) =>
+      evaluate(c, 'chrome.runtime.sendMessage({type:"debug-heartbeats"})')
+    );
+    const beatAge = hb?.heartbeats?.['127.0.0.1'];
+    console.log(
+      `视频心跳 → ${beatAge !== undefined ? `已登记 ✓（${beatAge} 秒前）` : '未登记 ✗'}`
+    );
+    vc.close();
+    await fetch(`http://127.0.0.1:${PORT}/json/close/${videoTarget.id}`).catch(() => {});
+  }
+
   // 6. 端到端：example.com 限额 5 分钟，预置 10 分钟用量 → 导航应被拦截。
   const todayKey = new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD（本地时区）
   await withPage(`chrome-extension://${extId}/src/pages/popup.html`, 'popup.html', async (c) => {

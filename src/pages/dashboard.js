@@ -479,6 +479,28 @@ $('heartbeatForm').addEventListener('submit', async (event) => {
   $('heartbeatDomain').value = '';
 });
 
+// 心跳诊断：显示后台最近采信的心跳，便于确认「看视频不计」类问题。
+async function renderHeartbeatStatus() {
+  const el = $('heartbeatStatus');
+  if (!el) return;
+  try {
+    const res = await chrome.runtime.sendMessage({ type: 'debug-heartbeats' });
+    const entries = Object.entries(res?.heartbeats || {});
+    if (!entries.length) {
+      el.textContent = '当前没有收到心跳：播放中的视频站点需在白名单内；扩展重载后请刷新对应页面。';
+      return;
+    }
+    el.textContent = `当前心跳：${entries
+      .map(([domain, age]) => `${domain} · ${age} 秒前`)
+      .join('，')}`;
+  } catch {
+    el.textContent = '';
+  }
+}
+
+renderHeartbeatStatus();
+setInterval(renderHeartbeatStatus, 20_000);
+
 /* ---------- 数据 ---------- */
 
 function download(filename, content, type) {
