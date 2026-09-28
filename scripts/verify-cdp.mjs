@@ -314,6 +314,24 @@ try {
         out.heatWeekdays = document.querySelectorAll('.heat-weekday').length;
         out.heatWeekdayFirst =
           document.querySelector('.heat-weekday')?.textContent ?? '';
+        // 日历年视图：首个月份标签应为 1 月，最后应为 12 月
+        const monthTexts = [...document.querySelectorAll('.heat-month')].map((el) => el.textContent);
+        out.monthFirst = monthTexts[0] ?? '';
+        out.monthLast = monthTexts[monthTexts.length - 1] ?? '';
+        // 9/27 与 9/28 不应同列（27 日在 28 日左侧一列）
+        out.stacked = (() => {
+          const cells = [...document.querySelectorAll('.heat-cell.has-data')];
+          const colOf = {};
+          for (const el of cells) {
+            const d = el.dataset.date;
+            if (d === '2026-09-27' || d === '2026-09-28') {
+              const c = el.style.gridColumn;
+              if (colOf[d] && colOf[d] !== c) return true;
+              colOf[d] = c;
+            }
+          }
+          return colOf['2026-09-27'] === colOf['2026-09-28'] && colOf['2026-09-27'] !== undefined;
+        })();
         out.todayCardClickable = document.getElementById('todayCard')?.dataset !== undefined &&
           !!document.querySelector('#todayCard');
         // 注入 10 个额外站点，验证排行默认前 7 + 查看更多展开。
@@ -375,11 +393,14 @@ try {
         `i18n + GitHub → 链接 ${chartChecks.githubLink}，图标 ${chartChecks.githubIcon}，EN 标签「${chartChecks.enTab}」，ZH 标签「${chartChecks.zhTab}」 ${i18nOk ? '✓' : '✗'}`
       );
       console.log(
-        `热力图增强 → 月份标签 ${chartChecks.heatMonths} 个，可点击格子 ${chartChecks.heatCellsHasData} 个，星期标签 ${chartChecks.heatWeekdays} 个（首行「${chartChecks.heatWeekdayFirst}」应为周一） ${
-          chartChecks.heatMonths >= 6 &&
+        `热力图增强 → 月份标签 ${chartChecks.heatMonths} 个（首「${chartChecks.monthFirst}」末「${chartChecks.monthLast}」），可点击格子 ${chartChecks.heatCellsHasData} 个，星期标签 ${chartChecks.heatWeekdays} 个（首行「${chartChecks.heatWeekdayFirst}」应为周一），27/28 日同列 ${chartChecks.stacked} ${
+          chartChecks.heatMonths === 12 &&
+          chartChecks.monthFirst === '1月' &&
+          chartChecks.monthLast === '12月' &&
           chartChecks.heatCellsHasData > 0 &&
           chartChecks.heatWeekdays === 7 &&
-          chartChecks.heatWeekdayFirst === '周一'
+          chartChecks.heatWeekdayFirst === '周一' &&
+          !chartChecks.stacked
             ? '✓'
             : '✗'
         }`

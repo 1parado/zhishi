@@ -279,78 +279,79 @@ function renderHeatmap(days, todayKey) {
   heatCellData = {};
 
   const locale = document.documentElement.lang === 'en' ? 'en-US' : 'zh-CN';
+  const fmtMonth = new Intl.DateTimeFormat(locale, { month: 'short' });
+  const fmtWeekday = new Intl.DateTimeFormat(locale, { weekday: 'short' });
 
-  // 左侧星期标签：行序固定为周一 → 周日（与格子按星期显式定位一致）。
+  // 左侧星期标签：行序周一 → 周日（与格子行一一对应）。
+  const mondayBase = new Date(2026, 8, 21); // 已知周一
   for (let r = 0; r < 7; r++) {
-    const label = new Intl.DateTimeFormat(locale, { weekday: 'short' }).format(
-      new Date(2026, 8, 21 + r) // 2026-09-21 是周一
-    );
     const span = document.createElement('span');
     span.className = 'heat-weekday';
-    span.textContent = label;
+    span.textContent = fmtWeekday.format(new Date(mondayBase.getTime() + r * 86400000));
     weekdays.append(span);
   }
 
-  // 对齐到周：以今天所在周的周日为终点，向前铺 53 周。
-  const today = new Date(todayKey + 'T00:00:00');
-  const end = shiftDateKey(todayKey, today.getDay() === 6 ? 0 : 6 - today.getDay());
-  const endDate = new Date(end + 'T00:00:00');
-  const cells = [];
+  // 日历年视图：1 月 1 日 → 12 月 31 日；列 = 周一对齐的 ISO 周（周一在顶部）。
+  const year = Number(todayKey.slice(0, 4));
+  const yearStart = new Date(year, 0, 1);
+  const yearEnd = new Date(year, 11, 31);
+  const firstMonday = new Date(year, 0, 1 - ((yearStart.getDay() + 6) % 7));
+  const lastSunday = new Date(year, 11, 31 + (6 - ((yearEnd.getDay() + 6) % 7)));
+  const weeks = Math.round((lastSunday - firstMonday) / 86400000 / 7) + 1;
+  grid.style.gridTemplateColumns = `repeat(${weeks}, 12px)`;
+
+  const monthCols = new Map(); // 'M' → 该月 1 日的列位与日期（标签对齐用）
   let yearTotal = 0;
-  for (let i = 0; i < 371; i++) {
-    const key = shiftDateKey(end, -i);
-    if (key > todayKey) continue; // 最后一周未来日期留空
-    const sites = Object.entries(days[key] || {}).sort((a, b) => b[1] - a[1]);
-    const seconds = sumSeconds(days[key]);
-    yearTotal += seconds;
-    cells.push({ key, seconds, top: sites.slice(0, 3) });
-  }
+  for (let d = new Date(firstMonday); d <= lastSunday; d.setDate(d.getDate() + 1)) {
+    const key = dateKey(d);
+    const inYear = d.getFullYear() === year;
+    const col = Math.floor((d - firstMonday) / 86400000 / 7);
+    const row = (d.getDay() + 6) % 7;
 
-  // 格子按「列 = 周、行 = 星期」显式定位；同一列是同一周，行序周一 → 周日。
-  const monthCols = new Map(); // 'YYYY-M' → 该月最早一天的列位与日期（标签对齐用）
-  cells.forEach((cell) => {
-    const cellDate = new Date(cell.key + 'T00:00:00');
-    const diffDays = Math.round((endDate - cellDate) / 86400000);
-    const colFromEnd = Math.floor(diffDays / 7);
-    const row = (cellDate.getDay() + 6) % 7; // 0 = 周一
-
-    const monthKey = `${cellDate.getFullYear()}-${cellDate.getMonth()}`;
-    const known = monthCols.get(monthKey);
-    // 反向遍历中最先遇到的是月末；标签要对齐到月首，保留更大的列位。
-    if (!known || colFromEnd > known.colFromEnd) {
-      monthCols.set(monthKey, { colFromEnd, date: cellDate });
+    if (inYear && d.getDate() === 1) {
+      monthCols.set(`${d.getFullYear()}-${d.getMonth()}`, { col, date: new Date(d) });
     }
-
-    heatCellData[cell.key] = { seconds: cell.seconds, top: cell.top };
 
     const el = document.createElement('span');
     el.className = 'heat-cell';
-    el.dataset.level = String(usageLevel(cell.seconds));
-    el.dataset.date = cell.key;
-    if (cell.seconds > 0) el.classList.add('has-data');
-    el.style.gridColumn = String(53 - colFromEnd); // 最右列 = 当前周
+    el.style.gridColumn = String(col + 1);
     el.style.gridRow = String(row + 1);
-    grid.append(el);
-  });
 
-  // 月份标签贴在网格底部、与列对齐；相邻标签过近时跳过。
+    // 年外的日子或未来日期：透明占位，保持列对齐，不可交互。
+    if (!inYear || key > todayKey) {
+      el.classList.add('ghost');
+      grid.append(el);
+      continue;
+    }
+
+    const sites = Object.entries(days[key] || {}).sort((a, b) => b[1] - a[1]);
+    const seconds = sumSeconds(days[key]);
+    yearTotal += seconds;
+    heatCellData[key] = { seconds, top: sites.slice(0, 3) };
+
+    el.dataset.level = String(usageLevel(seconds));
+    el.dataset.date = key;
+    if (seconds > 0) el.classList.add('has-data');
+    grid.append(el);
+  }
+
+  // 月份标签贴在网格底部、与列对齐（1 月在最左 → 12 月在最右）；相邻过近时跳过。
   const colWidth = 15;
   let prevLeft = -100;
-  const sortedMonths = [...monthCols.values()].sort(
-    (a, b) => b.colFromEnd - a.colFromEnd // left 随 colFromEnd 递减，先排最左
-  );
-  for (const { colFromEnd, date } of sortedMonths) {
-    const left = (52 - colFromEnd) * colWidth;
+  const sortedMonths = [...monthCols.values()].sort((a, b) => a.col - b.col);
+  for (const { col, date } of sortedMonths) {
+    const left = col * colWidth;
     if (left - prevLeft < 36) continue;
     prevLeft = left;
     const span = document.createElement('span');
     span.className = 'heat-month';
     span.style.left = `${left + 1}px`;
-    span.textContent = new Intl.DateTimeFormat(locale, { month: 'short' }).format(date);
+    span.textContent = fmtMonth.format(date);
     months.append(span);
   }
 
   $('yearTotal').textContent = t('yearTotal', { time: fmtDuration(yearTotal) });
+  $('yearTitle').textContent = locale === 'en' ? String(year) : `${year} 年`;
 }
 
 // 悬停详情卡与点击跳转（事件委托，网格重 build 后依然有效）。

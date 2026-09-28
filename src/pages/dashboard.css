@@ -507,6 +507,11 @@
   background: var(--muted);
 }
 
+.heat-cell.ghost {
+  background: transparent;
+  cursor: default;
+}
+
 /* 语义色标：浅（无）→ 绿 → 黄 → 橙 → 红，阈值 1h / 3h / 6h。 */
 .heat-cell[data-level='1'] {
   background: var(--success);
