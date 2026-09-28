@@ -1,6 +1,7 @@
 import { classifyUrl, dateKey, goalVariant, sumSeconds } from '../lib/pure.js';
 import { getSettings, saveSettings } from '../lib/settings.js';
 import { applyI18n, fmtDuration, initI18n, refreshLocale, t } from '../lib/i18n.js';
+import { siteIconUrl } from '../lib/site-icons.js';
 import { getDay } from '../background/store.js';
 import { currentSession } from '../background/tracker.js';
 
@@ -113,6 +114,7 @@ function renderSites(today, session) {
     const name = document.createElement('span');
     name.className = 'site-name';
     name.textContent = domain;
+    name.style.backgroundImage = siteIconUrl(domain);
 
     const time = document.createElement('span');
     time.className = 'site-time num';

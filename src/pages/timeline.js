@@ -1,5 +1,6 @@
 import { dateKey, shortDate, shiftDateKey, sumSeconds } from '../lib/pure.js';
 import { applyI18n, fmtDuration, initI18n, t } from '../lib/i18n.js';
+import { siteIconUrl } from '../lib/site-icons.js';
 import { getSegmentsByDate } from '../lib/idb.js';
 import { getDay, getTimeline } from '../background/store.js';
 
@@ -296,6 +297,7 @@ function renderSites(day) {
     const name = document.createElement('span');
     name.className = 'top-name';
     name.textContent = domain;
+    name.style.backgroundImage = siteIconUrl(domain);
 
     const track = document.createElement('div');
     track.className = 'bar-track';

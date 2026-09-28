@@ -349,6 +349,8 @@ try {
         out.dayTopMatches = dayRows[0] === expectedTop && dayRows.length > 0;
         out.topDefaultSeven = out.dayRows === 7;
         out.hasMoreBtn = !!document.querySelector('.top-more');
+        // 品牌色 SVG 图标
+        out.siteIcons = document.querySelectorAll('.top-name[style*="data:image/svg+xml"]').length;
         document.querySelector('.top-more')?.click();
         await new Promise((r) => setTimeout(r, 200));
         out.topExpanded = document.querySelectorAll('#topSites .top-name').length;
@@ -376,7 +378,8 @@ try {
         chartChecks.weekRows > 0 &&
         chartChecks.topDefaultSeven &&
         chartChecks.hasMoreBtn &&
-        chartChecks.topExpanded > 7;
+        chartChecks.topExpanded > 7 &&
+        chartChecks.siteIcons > 0;
       const i18nOk =
         chartChecks.githubLink === 'https://github.com/1parado/zhishi' &&
         chartChecks.githubIcon &&
@@ -387,7 +390,7 @@ try {
         `图表切换 → 折线 ${chartChecks.line} / 饼状 ${chartChecks.pie} / 柱状 ${chartChecks.bar}，热力新配色 ${chartChecks.heatColored} ${chartOk ? '✓' : '✗'}`
       );
       console.log(
-        `排行范围 → 今日默认 ${chartChecks.dayRows} 条（第 7 截断 ${chartChecks.topDefaultSeven} / 有查看更多 ${chartChecks.hasMoreBtn} / 展开后 ${chartChecks.topExpanded} 条）/ 近 7 天 ${chartChecks.weekRows} 条 ${rangeOk ? '✓' : '✗'}`
+        `排行范围 → 今日默认 ${chartChecks.dayRows} 条（第 7 截断 ${chartChecks.topDefaultSeven} / 有查看更多 ${chartChecks.hasMoreBtn} / 展开后 ${chartChecks.topExpanded} 条 / 品牌图标 ${chartChecks.siteIcons} 个）/ 近 7 天 ${chartChecks.weekRows} 条 ${rangeOk ? '✓' : '✗'}`
       );
       console.log(
         `i18n + GitHub → 链接 ${chartChecks.githubLink}，图标 ${chartChecks.githubIcon}，EN 标签「${chartChecks.enTab}」，ZH 标签「${chartChecks.zhTab}」 ${i18nOk ? '✓' : '✗'}`

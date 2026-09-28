@@ -337,6 +337,17 @@ button {
 .pie-dot[data-color='6'] { background: color-mix(in srgb, var(--chart-1) 45%, var(--card)); }
 .pie-dot[data-color='7'] { background: color-mix(in srgb, var(--chart-2) 45%, var(--card)); }
 
+/* ---------- 网站名 + 品牌 SVG 图标 ---------- */
+
+.site-name,
+.top-name,
+.tl-site-name {
+  background-repeat: no-repeat;
+  background-position: left center;
+  background-size: 16px 16px;
+  padding-left: 22px;
+}
+
 /* ---------- 空状态 ---------- */
 
 .empty {

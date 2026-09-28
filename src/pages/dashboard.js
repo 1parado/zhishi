@@ -19,6 +19,7 @@ import {
   setLimitEnabled,
 } from '../lib/settings.js';
 import { applyI18n, fmtDuration, initI18n, refreshLocale, t } from '../lib/i18n.js';
+import { siteIconUrl } from '../lib/site-icons.js';
 import { clearAllData, getAllDays } from '../background/store.js';
 
 const $ = (id) => document.getElementById(id);
@@ -464,6 +465,7 @@ function renderTopSites(days, todayKey, range) {
     const name = document.createElement('span');
     name.className = 'top-name';
     name.textContent = domain;
+    name.style.backgroundImage = siteIconUrl(domain);
 
     const track = document.createElement('div');
     track.className = 'bar-track';
