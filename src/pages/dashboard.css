@@ -141,6 +141,7 @@
   align-items: end;
   height: 140px;
   padding-top: 8px;
+  position: relative; /* 目标基线叠加层定位基准 */
 }
 
 .week-col {
@@ -187,6 +188,41 @@
 
 .week-baseline {
   stroke: var(--border);
+}
+
+/* 每日目标基线：柱状图为叠加虚线 + 右端数值标签，折线图为 SVG 虚线 + 文本。
+   仅在用户开启每日目标时由 JS 渲染。 */
+.week-goal-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 0;
+  border-top: 1.5px dashed var(--muted-foreground);
+  opacity: 0.55;
+  pointer-events: none;
+  z-index: 1;
+}
+.week-goal-label {
+  position: absolute;
+  right: 0;
+  top: -14px;
+  font-size: 10px;
+  line-height: 1;
+  color: var(--muted-foreground);
+  background: var(--card);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+.week-goal-svg {
+  stroke: var(--muted-foreground);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 3;
+  opacity: 0.6;
+  fill: none;
+}
+.week-goal-svg-label {
+  fill: var(--muted-foreground);
+  font-size: 9px;
 }
 
 .week-labels {

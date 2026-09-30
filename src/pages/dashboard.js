@@ -87,7 +87,7 @@ function renderOverview(days, settings) {
   $('statWeek').textContent = fmtDuration(weekTotal);
   $('statWeekAvg').textContent = t('dailyAvg', { time: fmtDuration(Math.round(weekTotal / 7)) });
 
-  renderWeekChart(week, settings.weekChart);
+  renderWeekChart(week, settings.weekChart, settings.goal);
   renderHeatmap(days, todayKey);
   renderTopSites(days, todayKey, settings.topSitesRange);
 }
@@ -128,18 +128,35 @@ function svgEl(tag, attrs = {}) {
 // 饼状图七天各一色：chart-1..5 + 两个淡化变体循环。
 const DAY_COLORS = ['1', '2', '3', '4', '5', '6', '7'];
 
-function renderWeekChart(week, chartType) {
+function renderWeekChart(week, chartType, goal) {
   const wrap = $('weekChart');
   wrap.textContent = '';
-  if (chartType === 'line') return renderWeekLine(week, wrap);
+  if (chartType === 'line') return renderWeekLine(week, wrap, goal);
   if (chartType === 'pie') return renderWeekPie(week, wrap);
-  renderWeekBar(week, wrap);
+  renderWeekBar(week, wrap, goal);
 }
 
-function renderWeekBar(week, wrap) {
+function renderWeekBar(week, wrap, goal) {
   wrap.className = 'week-chart';
   const max = Math.max(...week.map((d) => d.seconds), 1);
   const todayKey = dateKey();
+
+  // 每日目标基线：横向虚线，仅在用户开启每日目标时显示。
+  if (goal?.enabled) {
+    const goalSec = goal.dailyMinutes * 60;
+    // 超过最高柱时贴顶（ratio≤1），低于时按 goal/max 定位。
+    const ratio = Math.min(goalSec / max, 1);
+    const padTop = 8;
+    const contentH = Math.max(wrap.clientHeight - padTop, 140 - padTop);
+    const line = document.createElement('div');
+    line.className = 'week-goal-line';
+    line.style.bottom = `${ratio * contentH}px`;
+    const label = document.createElement('span');
+    label.className = 'week-goal-label';
+    label.textContent = fmtDuration(goalSec);
+    line.append(label);
+    wrap.append(line);
+  }
 
   for (const day of week) {
     const col = document.createElement('div');
@@ -159,7 +176,7 @@ function renderWeekBar(week, wrap) {
   }
 }
 
-function renderWeekLine(week, wrap) {
+function renderWeekLine(week, wrap, goal) {
   wrap.className = '';
   // 按容器实际宽度绘制，坐标系与显示像素 1:1，高度与柱状图一致（140px）。
   const W = Math.max(wrap.clientWidth || 800, 320);
@@ -182,6 +199,18 @@ function renderWeekLine(week, wrap) {
     svgEl('line', { class: 'week-baseline', x1: 4, y1: H - bottom, x2: W - 4, y2: H - bottom }),
     svgEl('polyline', { class: 'week-line', points: pts.map((p) => p.join(',')).join(' ') })
   );
+
+  // 每日目标基线：横向虚线 + 右端数值标签，仅在用户开启每日目标时显示。
+  if (goal?.enabled) {
+    const goalSec = goal.dailyMinutes * 60;
+    let yg = H - bottom - (goalSec / max) * (H - bottom - top);
+    if (yg < top) yg = top; // 目标高于最高点时贴顶
+    svg.append(svgEl('line', { class: 'week-goal-svg', x1: 0, y1: yg, x2: W, y2: yg }));
+    const gl = svgEl('text', { class: 'week-goal-svg-label', x: W - 2, y: yg - 3, 'text-anchor': 'end' });
+    gl.textContent = fmtDuration(goalSec);
+    svg.append(gl);
+  }
+
   for (const [i, p] of pts.entries()) {
     const dot = svgEl('circle', { class: 'week-dot', cx: p[0], cy: p[1], r: 3.5 });
     const title = svgEl('title');
