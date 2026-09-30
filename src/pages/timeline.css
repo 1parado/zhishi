@@ -191,6 +191,11 @@
   padding: 7px 0;
 }
 
+/* 主要网站列表默认折叠降噪；点击「查看更多/收起」切换。 */
+#tlSites.collapsed {
+  display: none;
+}
+
 .top-name {
   font-size: 13px;
   overflow: hidden;

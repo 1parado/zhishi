@@ -3,6 +3,7 @@ import { applyI18n, fmtDuration, initI18n, t } from '../lib/i18n.js';
 import { siteIconUrl } from '../lib/site-icons.js';
 import { getSegmentsByDate } from '../lib/idb.js';
 import { getDay, getTimeline } from '../background/store.js';
+import { getSettings, saveSettings } from '../lib/settings.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -13,6 +14,9 @@ let currentDate = params.get('date') || dateKey();
 const view = { start: null, end: null };
 // brush 拖选后短暂抑制色块点击，避免拖选结束误开网站。
 let suppressSegClick = false;
+// 「主要网站」列表的展开偏好（默认折叠降噪），跨日保持。
+let tlSitesExpanded = false;
+let tlSitesCount = 0;
 
 function dateLabel(key) {
   const [y, m, d] = key.split('-').map(Number);
@@ -35,6 +39,8 @@ function fmtClock(ms) {
 async function render() {
   await initI18n();
   await applyI18n();
+  const settings = await getSettings();
+  tlSitesExpanded = settings.tlSitesExpanded;
 
   const [hourBuckets, day, segments] = await Promise.all([
     getTimeline(currentDate),
@@ -69,7 +75,7 @@ async function render() {
       wrap.append(note);
     }
   }
-  renderSites(day);
+  renderSites(day, tlSitesExpanded);
 }
 
 /** 24 小时色带（含缩放窗口、重叠错位、brush 拖选、点击跳转）。 */
@@ -276,18 +282,29 @@ function renderHours(timeline, wrap) {
   renderRibbon(segsAbs, wrap);
 }
 
-function renderSites(day) {
+function renderSites(day, expanded) {
   const wrap = $('tlSites');
   wrap.textContent = '';
 
   const entries = Object.entries(day).sort((a, b) => b[1] - a[1]);
+  tlSitesCount = entries.length;
+  const toggle = $('tlSitesToggle');
+
   if (!entries.length) {
+    if (toggle) toggle.hidden = true;
     const empty = document.createElement('p');
     empty.className = 'empty';
     empty.textContent = t('timelineEmpty');
     wrap.append(empty);
     return;
   }
+
+  if (toggle) {
+    toggle.hidden = false;
+    updateToggle(toggle, entries.length, expanded);
+  }
+  // 默认折叠（降噪）：collapsed 类隐藏整张列表，点击按钮展开。
+  wrap.classList.toggle('collapsed', !expanded);
 
   const max = entries[0][1];
   for (const [domain, seconds] of entries) {
@@ -314,6 +331,22 @@ function renderSites(day) {
     wrap.append(row);
   }
 }
+
+function updateToggle(toggle, count, expanded) {
+  toggle.textContent = expanded ? t('showLess') : t('showMore', { n: count });
+  toggle.setAttribute('aria-expanded', String(expanded));
+}
+
+$('tlSitesToggle')?.addEventListener('click', async () => {
+  const wrap = $('tlSites');
+  // 当前是否折叠 → 点击后取反。
+  const willExpand = wrap.classList.contains('collapsed');
+  wrap.classList.toggle('collapsed', !willExpand);
+  tlSitesExpanded = willExpand;
+  updateToggle($('tlSitesToggle'), tlSitesCount, willExpand);
+  // 偏好持久化，跨日与跨刷新保持。
+  await saveSettings({ tlSitesExpanded: willExpand });
+});
 
 function goto(key) {
   currentDate = key;

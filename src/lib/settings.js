@@ -15,6 +15,8 @@ export const DEFAULT_SETTINGS = {
   weekChart: 'bar',
   // 网站排行范围：day 今日 / week 近 7 天。
   topSitesRange: 'week',
+  // 时间线页「主要网站」列表默认折叠（降低信息噪音），点击展开后记住偏好。
+  tlSitesExpanded: false,
   // 界面语言：auto 跟随浏览器语言，或强制 zh / en。
   locale: 'auto',
   // 网站限额总开关 + 逐条规则：
@@ -113,6 +115,7 @@ function normalize(raw) {
 
   if (!['bar', 'line', 'pie'].includes(merged.weekChart)) merged.weekChart = 'bar';
   if (!['day', 'week'].includes(merged.topSitesRange)) merged.topSitesRange = 'week';
+  merged.tlSitesExpanded = merged.tlSitesExpanded === true;
   if (!['zh', 'en'].includes(merged.locale)) merged.locale = 'auto';
 
   merged.heartbeat = {
