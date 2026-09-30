@@ -158,7 +158,12 @@
   max-width: 44px;
   min-height: 2px;
   border-radius: 4px 4px 2px 2px;
-  background: var(--success); /* 柱状图统一用绿色 */
+  background: linear-gradient(180deg, color-mix(in srgb, var(--success) 75%, white), var(--success));
+  transition: filter 0.15s ease;
+}
+
+.week-bar:hover {
+  filter: brightness(1.08);
 }
 
 /* 折线图（与柱状图同高：固定 140px，按容器宽度绘制） */
@@ -249,6 +254,7 @@
 
 .pie-wrap .week-svg {
   height: 148px;
+  filter: drop-shadow(0 2px 4px rgb(0 0 0 / 0.1)); /* 轻微厚度/浮起感 */
 }
 
 .pie-center {
@@ -548,7 +554,9 @@
   width: 12px;
   height: 12px;
   border-radius: 3px;
-  background: var(--muted);
+  background: color-mix(in srgb, var(--muted) 50%, var(--card)); /* 空格更淡，不显灰 */
+  position: relative; /* hover 放大时层叠在邻居之上 */
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
 }
 
 .heat-cell.ghost {
@@ -556,21 +564,33 @@
   cursor: default;
 }
 
-/* 语义色标：浅（无）→ 绿 → 黄 → 橙 → 红，阈值 1h / 3h / 6h。 */
+/* hover 放大 + 轻阴影，与饼/柱图交互一致；ghost 不响应。 */
+.heat-cell:not(.ghost):hover {
+  transform: scale(1.45);
+  z-index: 1;
+  box-shadow: var(--shadow-sm), inset 0 1px 0 rgb(255 255 255 / 0.18);
+}
+
+/* 语义色标：浅（无）→ 绿 → 黄 → 橙 → 红，阈值 1h / 3h / 6h；
+   各级混入少量 card 让梯度更柔和，避免纯色过硬。 */
+.heat-cell[data-level] {
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.18); /* 有数据格子顶部内微光 */
+}
+
 .heat-cell[data-level='1'] {
-  background: var(--success);
+  background: color-mix(in srgb, var(--success) 85%, var(--card));
 }
 
 .heat-cell[data-level='2'] {
-  background: var(--warning);
+  background: color-mix(in srgb, var(--warning) 85%, var(--card));
 }
 
 .heat-cell[data-level='3'] {
-  background: color-mix(in srgb, var(--warning) 45%, var(--destructive));
+  background: color-mix(in srgb, color-mix(in srgb, var(--warning) 50%, var(--destructive)) 85%, var(--card));
 }
 
 .heat-cell[data-level='4'] {
-  background: var(--destructive);
+  background: color-mix(in srgb, var(--destructive) 85%, var(--card));
 }
 
 /* 网站排行（近 7 天） */

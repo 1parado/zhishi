@@ -280,8 +280,11 @@ button {
 .bar-fill {
   height: 100%;
   border-radius: 999px;
-  background: var(--chart-1);
-  transition: width 0.4s ease-out;
+  background: linear-gradient(90deg, var(--chart-1), color-mix(in srgb, var(--chart-1) 60%, white));
+  transition: width 0.4s ease-out, filter 0.15s ease;
+}
+.bar-track:hover .bar-fill {
+  filter: brightness(1.08);
 }
 
 /* ---------- 分段切换器（全局组件：图表形式、筛选、语言等） ---------- */
@@ -372,10 +375,23 @@ button {
 /* ---------- 空状态 ---------- */
 
 .empty {
-  padding: 24px 16px;
+  padding: 28px 16px;
   text-align: center;
   color: var(--muted-foreground);
   font-size: 13px;
+}
+
+/* 空状态图标：mask 取色，自适应明暗主题；时钟呼应「知时」品牌。 */
+.empty::before {
+  content: '';
+  display: block;
+  margin: 0 auto 10px;
+  width: 30px;
+  height: 30px;
+  background: var(--muted-foreground);
+  opacity: 0.3;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='8.5'/%3E%3Cpath d='M12 7.5 V12 l2.8 1.8'/%3E%3C/svg%3E") center/contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='8.5'/%3E%3Cpath d='M12 7.5 V12 l2.8 1.8'/%3E%3C/svg%3E") center/contain no-repeat;
 }
 
 @media (prefers-reduced-motion: reduce) {
