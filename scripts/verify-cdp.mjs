@@ -502,7 +502,7 @@ try {
           segs: document.querySelectorAll('.tl-seg').length,
           ticks: document.querySelectorAll('.tl-tick').length,
           note: !!document.querySelector('.tl-fallback'),
-          sites: document.querySelectorAll('#tlSites .top-row').length,
+          sites: document.querySelectorAll('#timeline .legend-item').length,
         })`)
           );
 
