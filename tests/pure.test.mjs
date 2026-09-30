@@ -7,6 +7,7 @@ import {
   filterLimits,
   fmtBadge,
   fmtDuration,
+  fmtDurationCompact,
   goalVariant,
   inTimeWindow,
   isValidTime,
@@ -64,6 +65,25 @@ test('fmtDuration 英文时长', () => {
   assert.equal(fmtDuration(3600, 'en'), '1 hour');
   assert.equal(fmtDuration(2 * 3600, 'en'), '2 hours');
   assert.equal(fmtDuration(2 * 3600 + 18 * 60, 'en'), '2 hours 18 min');
+});
+
+test('fmtDurationCompact 中文紧凑时长（进度环用）', () => {
+  assert.equal(fmtDurationCompact(0), '0 秒');
+  assert.equal(fmtDurationCompact(42), '42秒');
+  assert.equal(fmtDurationCompact(75), '1分15秒');
+  assert.equal(fmtDurationCompact(34 * 60), '34分');
+  assert.equal(fmtDurationCompact(2 * 3600), '2小时');
+  assert.equal(fmtDurationCompact(2 * 3600 + 18 * 60), '2小时18分');
+  assert.equal(fmtDurationCompact(12 * 3600 + 34 * 60), '12小时34分');
+});
+
+test('fmtDurationCompact 英文紧凑时长', () => {
+  assert.equal(fmtDurationCompact(0, 'en'), '0s');
+  assert.equal(fmtDurationCompact(42, 'en'), '42s');
+  assert.equal(fmtDurationCompact(75, 'en'), '1m 15s');
+  assert.equal(fmtDurationCompact(34 * 60, 'en'), '34m');
+  assert.equal(fmtDurationCompact(3600, 'en'), '1h');
+  assert.equal(fmtDurationCompact(2 * 3600 + 18 * 60, 'en'), '2h 18m');
 });
 
 test('fmtBadge 角标文本', () => {

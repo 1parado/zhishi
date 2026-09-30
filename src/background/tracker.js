@@ -15,10 +15,16 @@ const SESSION_KEY = 'session';
 const MAX_CHUNK_MS = 90_000;
 const TICK_DEBOUNCE_MS = 400;
 const HEARTBEAT_FRESH_MS = 90_000;
+// 阅读心跳（滚动）的新鲜窗口：略大于闲置判定阈值 60 秒，
+// 内容脚本每 20 秒至多上报一次，只要 60 秒内滚动过就算「人在看」。
+const SCROLL_FRESH_MS = 65_000;
 
 // domain → 最近一次心跳时间戳。心跳由内容脚本在播放音视频时上报，
 // 仅对用户在设置中标记的站点被采信（noteHeartbeat 里统一把关）。
 const heartbeatDomains = new Map();
+
+// domain → 最近一次滚动时间戳。滚动是真实的用户输入，任何站点都采信。
+const scrollDomains = new Map();
 
 let lastTickAt = 0;
 
@@ -27,9 +33,17 @@ function heartbeatFresh(domain) {
   return typeof ts === 'number' && Date.now() - ts < HEARTBEAT_FRESH_MS;
 }
 
+function scrollFresh(domain) {
+  const ts = scrollDomains.get(domain);
+  return typeof ts === 'number' && Date.now() - ts < SCROLL_FRESH_MS;
+}
+
 function pruneHeartbeats(now) {
   for (const [domain, ts] of heartbeatDomains) {
     if (now - ts > HEARTBEAT_FRESH_MS) heartbeatDomains.delete(domain);
+  }
+  for (const [domain, ts] of scrollDomains) {
+    if (now - ts > SCROLL_FRESH_MS) scrollDomains.delete(domain);
   }
 }
 
@@ -43,12 +57,29 @@ export async function noteHeartbeat(sender) {
   heartbeatDomains.set(domain, Date.now());
 }
 
+/** 内容脚本阅读心跳（滚轮/触摸滚动）上报入口：真实输入，所有站点直接采信。 */
+export function noteScrollActivity(sender) {
+  const domain = classifyUrl(sender?.tab?.url);
+  if (!domain) return;
+  scrollDomains.set(domain, Date.now());
+}
+
 /** 诊断用：当前新鲜心跳（域名 → 距上次心跳的秒数）。 */
 export function getHeartbeatState(now = Date.now()) {
   const out = {};
   for (const [domain, ts] of heartbeatDomains) {
     const age = Math.round((now - ts) / 1000);
     if (age <= HEARTBEAT_FRESH_MS / 1000) out[domain] = age;
+  }
+  return out;
+}
+
+/** 诊断用：当前新鲜的阅读心跳（域名 → 距上次滚动的秒数）。 */
+export function getScrollActivityState(now = Date.now()) {
+  const out = {};
+  for (const [domain, ts] of scrollDomains) {
+    const age = Math.round((now - ts) / 1000);
+    if (age <= SCROLL_FRESH_MS / 1000) out[domain] = age;
   }
   return out;
 }
@@ -98,14 +129,18 @@ async function writeSegments(domain, startMs, endMs) {
 
 /**
  * 把上一段会话记入当日聚合与分段库。
- * 「锁定」一律暂停；「闲置」时若该站点有心跳（正在播放音视频），视为人在，继续计时。
+ * 「锁定」一律暂停；「闲置」时若该站点有视频心跳（正在播放音视频）
+ * 或阅读心跳（60 秒内滚动过），视为人在，继续计时。
  */
 async function settle(idleState, now) {
   const { [SESSION_KEY]: session } = await chrome.storage.session.get(SESSION_KEY);
   await chrome.storage.session.remove(SESSION_KEY);
   if (!session || !session.domain) return 0;
   if (idleState === 'locked') return 0;
-  if (idleState !== 'active' && !heartbeatFresh(session.domain)) return 0;
+  // 闲置时：视频心跳（白名单站点）或阅读心跳（60 秒内滚动过）任一新鲜即视为人在。
+  if (idleState !== 'active' && !heartbeatFresh(session.domain) && !scrollFresh(session.domain)) {
+    return 0;
+  }
 
   const seconds = Math.floor(capChunk(now - session.startedAt, MAX_CHUNK_MS) / 1000);
   if (seconds < 1) return 0;
@@ -163,7 +198,7 @@ async function restartSession(idleState) {
     return;
   }
 
-  if (idleState !== 'active' && !heartbeatFresh(domain)) return;
+  if (idleState !== 'active' && !heartbeatFresh(domain) && !scrollFresh(domain)) return;
 
   await chrome.storage.session.set({
     [SESSION_KEY]: { tabId: tab.id, windowId: win.id, domain, startedAt: Date.now() },

@@ -113,9 +113,9 @@
   opacity: 0.8;
 }
 
-/* 图例点击高亮：未选中的色块整体淡化（放在 lane2 之后以覆盖其透明度） */
-.tl-seg.dim {
-  opacity: 0.12;
+/* 图例点击过滤：未选中的色块直接隐藏，时间轴只看该站点；再点一次恢复全部 */
+.tl-seg.off {
+  display: none;
 }
 
 /* brush 拖选矩形 */
@@ -210,52 +210,4 @@
 .tl-fallback {
   font-size: 12px;
   margin: 8px 0 0;
-}
-
-@media (max-width: 640px) {
-  .tl-site {
-    grid-template-columns: 1fr auto;
-  }
-
-  .tl-site .bar-track {
-    grid-column: 1 / -1;
-  }
-}
-
-/* ---------- 主要网站（当日聚合） ---------- */
-
-.top-row {
-  display: grid;
-  grid-template-columns: 200px 1fr auto;
-  gap: 12px;
-  align-items: center;
-  padding: 7px 0;
-}
-
-/* 主要网站列表默认折叠降噪；点击「查看更多/收起」切换。 */
-#tlSites.collapsed {
-  display: none;
-}
-
-.top-name {
-  font-size: 13px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.top-time {
-  font-size: 12px;
-  color: var(--muted-foreground);
-  white-space: nowrap;
-}
-
-@media (max-width: 640px) {
-  .top-row {
-    grid-template-columns: 1fr auto;
-  }
-
-  .top-row .bar-track {
-    grid-column: 1 / -1;
-  }
 }

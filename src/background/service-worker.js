@@ -6,7 +6,7 @@
 import { ensureAlarms } from './health.js';
 import { ensureMenu } from './menu.js';
 import { updateBadge } from './badge.js';
-import { getHeartbeatState, isPopupOpen, noteHeartbeat, tick } from './tracker.js';
+import { getHeartbeatState, isPopupOpen, noteHeartbeat, noteScrollActivity, tick } from './tracker.js';
 import { addSegmentRows } from '../lib/idb.js';
 
 chrome.idle.setDetectionInterval(60);
@@ -57,6 +57,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
   if (msg && msg.type === 'zhishi-heartbeat') {
     noteHeartbeat(sender);
+    return false;
+  }
+  // 阅读心跳：滚轮/触摸滚动（内容脚本已节流），所有站点采信。
+  if (msg && msg.type === 'zhishi-activity') {
+    noteScrollActivity(sender);
     return false;
   }
   // popup 打开瞬间可能因焦点切换竞态清掉会话，主动触发一次结算续上。

@@ -48,8 +48,8 @@
 
 .today-ring {
   position: relative;
-  width: 92px;
-  height: 92px;
+  width: 104px;
+  height: 104px;
 }
 
 .ring-track {
@@ -63,8 +63,9 @@
   stroke: var(--chart-1);
   stroke-width: 7;
   stroke-linecap: round;
-  stroke-dasharray: 257.6;
-  stroke-dashoffset: 257.6;
+  /* 周长 2π×46 ≈ 289：与 popup.js 的 offset 计算共用同一常量 */
+  stroke-dasharray: 289.03;
+  stroke-dashoffset: 289.03;
   transform: rotate(-90deg);
   transform-origin: center;
   transition: stroke-dashoffset 0.5s ease-out, stroke 0.3s;
@@ -91,6 +92,12 @@
 .today-big {
   font-size: 17px;
   font-weight: 650;
+}
+
+/* 环内空间有限：用紧凑时长格式 + 禁止换行，保证「12小时34分」也不出环 */
+.today-ring .today-big {
+  font-size: 14px;
+  white-space: nowrap;
 }
 
 .ring-caption {

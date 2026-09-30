@@ -133,30 +133,14 @@ function renderWeekChart(week, chartType, goal) {
   wrap.textContent = '';
   if (chartType === 'line') return renderWeekLine(week, wrap, goal);
   if (chartType === 'pie') return renderWeekPie(week, wrap);
-  renderWeekBar(week, wrap, goal);
+  // 柱状图不画基线：柱体与基线挤在一起，基线过高时只能贴顶，反而误导。
+  renderWeekBar(week, wrap);
 }
 
-function renderWeekBar(week, wrap, goal) {
+function renderWeekBar(week, wrap) {
   wrap.className = 'week-chart';
   const max = Math.max(...week.map((d) => d.seconds), 1);
   const todayKey = dateKey();
-
-  // 每日目标基线：横向虚线，仅在用户开启每日目标时显示。
-  if (goal?.enabled) {
-    const goalSec = goal.dailyMinutes * 60;
-    // 超过最高柱时贴顶（ratio≤1），低于时按 goal/max 定位。
-    const ratio = Math.min(goalSec / max, 1);
-    const padTop = 8;
-    const contentH = Math.max(wrap.clientHeight - padTop, 140 - padTop);
-    const line = document.createElement('div');
-    line.className = 'week-goal-line';
-    line.style.bottom = `${ratio * contentH}px`;
-    const label = document.createElement('span');
-    label.className = 'week-goal-label';
-    label.textContent = fmtDuration(goalSec);
-    line.append(label);
-    wrap.append(line);
-  }
 
   for (const day of week) {
     const col = document.createElement('div');
@@ -181,10 +165,16 @@ function renderWeekLine(week, wrap, goal) {
   // 按容器实际宽度绘制，坐标系与显示像素 1:1，高度与柱状图一致（140px）。
   const W = Math.max(wrap.clientWidth || 800, 320);
   const H = 140;
-  const max = Math.max(...week.map((d) => d.seconds), 60);
+  const dataMax = Math.max(...week.map((d) => d.seconds), 60);
   const bottom = 16;
   const top = 10;
   const todayKey = dateKey();
+
+  // 每日目标基线：始终把目标值纳入 Y 轴范围（取数据与目标的较大者 + 10% 留白），
+  // 保证目标虚线一定落在可视区域内。目标远高于数据时折线会被压缩，优先保证基线可见。
+  const goalSec = goal?.enabled ? goal.dailyMinutes * 60 : 0;
+  const max = goal?.enabled ? Math.max(dataMax, goalSec) * 1.1 : dataMax;
+
   const pts = week.map((day, i) => [
     (i + 0.5) * W / 7, // 7 等分列中心，与下方标签 grid(gap:0) 列中心严格对齐
     H - bottom - (day.seconds / max) * (H - bottom - top),
@@ -200,11 +190,9 @@ function renderWeekLine(week, wrap, goal) {
     svgEl('polyline', { class: 'week-line', points: pts.map((p) => p.join(',')).join(' ') })
   );
 
-  // 每日目标基线：横向虚线 + 右端数值标签，仅在用户开启每日目标时显示。
+  // 基线：横向虚线 + 右端数值标签。max = max(dataMax, goalSec)*1.1，yg 恒在绘图区内。
   if (goal?.enabled) {
-    const goalSec = goal.dailyMinutes * 60;
-    let yg = H - bottom - (goalSec / max) * (H - bottom - top);
-    if (yg < top) yg = top; // 目标高于最高点时贴顶
+    const yg = H - bottom - (goalSec / max) * (H - bottom - top);
     svg.append(svgEl('line', { class: 'week-goal-svg', x1: 0, y1: yg, x2: W, y2: yg }));
     const gl = svgEl('text', { class: 'week-goal-svg-label', x: W - 2, y: yg - 3, 'text-anchor': 'end' });
     gl.textContent = fmtDuration(goalSec);
@@ -824,6 +812,37 @@ function bindInterval(kind, inputId) {
 
 bindInterval('eye', 'eyeInterval');
 bindInterval('sit', 'sitInterval');
+
+// 健康提醒倒计时：开启提醒后每秒刷新「约 X 后提醒」（读取闹钟真实调度时间）；
+// 关闭即隐藏。闹钟尚未注册（刚开启的瞬间）时按完整间隔兜底。
+const HEALTH_COUNTDOWNS = [
+  { kind: 'eye', alarm: 'eyeReminder', el: 'eyeCountdown' },
+  { kind: 'sit', alarm: 'sitReminder', el: 'sitCountdown' },
+];
+
+async function updateHealthCountdown() {
+  if (!latestSettings) return;
+  for (const { kind, alarm, el } of HEALTH_COUNTDOWNS) {
+    const node = $(el);
+    const cfg = latestSettings.health[kind];
+    if (!cfg?.enabled || !(cfg.intervalMin > 0)) {
+      node.hidden = true;
+      continue;
+    }
+    let remainMs = null;
+    try {
+      const a = await chrome.alarms.get(alarm);
+      if (a?.scheduledTime != null) remainMs = a.scheduledTime - Date.now();
+    } catch {
+      // alarms API 不可用：按完整间隔兜底
+    }
+    if (remainMs == null) remainMs = cfg.intervalMin * 60_000;
+    if (remainMs < 0) remainMs = 0;
+    node.hidden = false;
+    node.textContent = t('nextReminderIn', { time: fmtDuration(Math.round(remainMs / 1000)) });
+  }
+}
+setInterval(updateHealthCountdown, 1000);
 
 // 窗口尺寸变化时重绘当前选项卡（折线图按容器宽度绘制）。
 let resizeTimer = null;

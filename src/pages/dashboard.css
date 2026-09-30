@@ -197,27 +197,26 @@
 
 /* 每日目标基线：柱状图为叠加虚线 + 右端数值标签，折线图为 SVG 虚线 + 文本。
    仅在用户开启每日目标时由 JS 渲染。 */
-.week-goal-line {
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 0;
-  border-top: 1.5px dashed var(--muted-foreground);
-  opacity: 0.55;
-  pointer-events: none;
-  z-index: 1;
-}
-.week-goal-label {
-  position: absolute;
-  right: 0;
-  top: -14px;
-  font-size: 10px;
-  line-height: 1;
+
+/* 健康提醒倒计时：开启提醒后出现在卡片描述下方 */
+.health-countdown {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0 0;
+  font-size: 12px;
   color: var(--muted-foreground);
-  background: var(--card);
-  padding: 1px 4px;
-  border-radius: 3px;
 }
+
+.health-countdown::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--chart-1);
+  flex-shrink: 0;
+}
+
 .week-goal-svg {
   stroke: var(--muted-foreground);
   stroke-width: 1.5;

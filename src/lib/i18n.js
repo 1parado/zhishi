@@ -11,7 +11,7 @@
  *   fmtDuration(3600);           // 按当前语言格式化时长
  */
 
-import { fmtDuration as fmtDurationBase } from './pure.js';
+import { fmtDuration as fmtDurationBase, fmtDurationCompact as fmtDurationCompactBase } from './pure.js';
 
 const MESSAGES = {
   zh: {
@@ -96,6 +96,7 @@ const MESSAGES = {
     eyeTitle: '护眼提醒',
     eyeDesc: '按 20-20-20 法则，定时提醒你望向 6 米外的远处。间隔可设 5–120 分钟。',
     eyeIntervalAria: '护眼提醒间隔（分钟）',
+    nextReminderIn: '约 {time} 后提醒',
     sitTitle: '久坐提醒',
     sitDesc: '定时提醒你起身活动，减少连续久坐。间隔可设 10–240 分钟，人离开电脑时不会打扰。',
     sitIntervalAria: '久坐提醒间隔（分钟）',
@@ -238,6 +239,7 @@ const MESSAGES = {
     eyeTitle: 'Eye rest',
     eyeDesc: 'Follows the 20-20-20 rule: periodic nudges to look at something far away. Interval 5–120 min.',
     eyeIntervalAria: 'Eye rest interval (minutes)',
+    nextReminderIn: 'Reminds in {time}',
     sitTitle: 'Sitting break',
     sitDesc: 'Periodic nudges to stand up and move. Interval 10–240 min; silent while you are away from the computer.',
     sitIntervalAria: 'Sitting break interval (minutes)',
@@ -340,6 +342,11 @@ export function getLocale() {
 /** 按当前语言格式化时长。 */
 export function fmtDuration(seconds) {
   return fmtDurationBase(seconds, getLocale());
+}
+
+/** 按当前语言格式化紧凑时长（进度环等小空间展示）。 */
+export function fmtDurationCompact(seconds) {
+  return fmtDurationCompactBase(seconds, getLocale());
 }
 
 /** 同步取词。参数用 {name} 占位。 */

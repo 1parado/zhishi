@@ -1,6 +1,6 @@
 import { classifyUrl, dateKey, goalVariant, sumSeconds } from '../lib/pure.js';
 import { getSettings, saveSettings } from '../lib/settings.js';
-import { applyI18n, fmtDuration, initI18n, refreshLocale, t } from '../lib/i18n.js';
+import { applyI18n, fmtDuration, fmtDurationCompact, initI18n, refreshLocale, t } from '../lib/i18n.js';
 import { siteIconUrl } from '../lib/site-icons.js';
 import { getDay } from '../background/store.js';
 import { currentSession } from '../background/tracker.js';
@@ -66,7 +66,8 @@ function startTicker() {
     if (liveSiteTimeEl) liveSiteTimeEl.textContent = fmtDuration(liveSite);
 
     const liveTotal = fmtDuration(cachedTodayTotal + elapsed);
-    $('todayTotal').textContent = liveTotal;
+    // 环内用紧凑格式（不换行不出环），下方纯文本模式用完整格式。
+    $('todayTotal').textContent = fmtDurationCompact(cachedTodayTotal + elapsed);
     $('todayTotalPlain').textContent = liveTotal;
   }, 1000);
 }
@@ -82,13 +83,15 @@ function renderToday(today, settings) {
     const ratio = Math.min(total / goalSeconds, 1);
     const circle = $('ringValue');
     circle.dataset.variant = variant;
-    circle.style.strokeDashoffset = String(257.6 * (1 - ratio));
+    // 周长 2π×46 ≈ 289.03，与 popup.css 的 stroke-dasharray 一致。
+    circle.style.strokeDashoffset = String(289.03 * (1 - ratio));
     $('ringCaption').textContent = t('goalMinutes', { n: settings.goal.dailyMinutes });
   } else {
     $('ringWrap').hidden = true;
     $('plainWrap').hidden = false;
   }
-  $('todayTotal').textContent = fmtDuration(total);
+  // 环内用紧凑格式（不换行不出环），纯文本模式用完整格式。
+  $('todayTotal').textContent = fmtDurationCompact(total);
   $('todayTotalPlain').textContent = fmtDuration(total);
 }
 

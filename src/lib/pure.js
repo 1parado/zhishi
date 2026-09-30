@@ -61,6 +61,25 @@ export function fmtDuration(totalSeconds, locale = 'zh') {
   return `${s} 秒`;
 }
 
+/** 紧凑时长（进度环等小空间展示）：3小时21分 / 3h 21m，去掉普通格式的空格与「钟」。 */
+export function fmtDurationCompact(totalSeconds, locale = 'zh') {
+  if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) {
+    return locale === 'en' ? '0s' : '0 秒';
+  }
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = Math.floor(totalSeconds % 60);
+
+  if (locale === 'en') {
+    if (h > 0) return m > 0 ? `${h}h ${m}m` : `${h}h`;
+    if (m > 0) return s > 0 ? `${m}m ${s}s` : `${m}m`;
+    return `${s}s`;
+  }
+  if (h > 0) return m > 0 ? `${h}小时${m}分` : `${h}小时`;
+  if (m > 0) return s > 0 ? `${m}分${s}秒` : `${m}分`;
+  return `${s}秒`;
+}
+
 /** 扩展图标角标文本：2.4h / 34m，不足 1 分钟不显示。 */
 export function fmtBadge(totalSeconds) {
   if (!Number.isFinite(totalSeconds) || totalSeconds < 60) return '';

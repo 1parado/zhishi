@@ -39,3 +39,26 @@ setInterval(() => {
   if (hasPlayingMedia()) send();
 }, 20_000);
 
+// ---------- 阅读心跳 ----------
+// 滚轮 / 触摸滚动视为「人在看页面」：向后台上报轻量活动信号，
+// 后台据此放宽该域名的闲置判定（纯滚动阅读不再被误判离开）。
+// 只监听真实的用户输入事件（wheel/touchmove），不监听 scroll——
+// 无限流页面的程序化滚动也会触发 scroll，会把自动加载误判成人在看。
+// 节流：最多每 20 秒上报一次，避免高频滚动刷爆消息通道。
+let lastActivitySent = 0;
+
+function sendActivity() {
+  const now = Date.now();
+  if (now - lastActivitySent < 20_000) return;
+  lastActivitySent = now;
+  try {
+    chrome.runtime.sendMessage({ type: 'zhishi-activity' }).catch(() => {});
+  } catch {
+    // 扩展上下文已失效
+  }
+}
+
+for (const event of ['wheel', 'touchmove']) {
+  document.addEventListener(event, sendActivity, { capture: true, passive: true });
+}
+
