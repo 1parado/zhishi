@@ -17,6 +17,11 @@ let suppressSegClick = false;
 // 「主要网站」列表的展开偏好（默认折叠降噪），跨日保持。
 let tlSitesExpanded = false;
 let tlSitesCount = 0;
+// 时间轴图例：默认只展示 Top 6 站点（按当日时长降序），展开偏好跨日保持。
+const LEGEND_TOP_N = 6;
+let tlLegendExpanded = false;
+// 当前点击高亮的站点（null = 不高亮），缩放重绘后保持。
+let highlightDomain = null;
 
 function dateLabel(key) {
   const [y, m, d] = key.split('-').map(Number);
@@ -41,6 +46,7 @@ async function render() {
   await applyI18n();
   const settings = await getSettings();
   tlSitesExpanded = settings.tlSitesExpanded;
+  tlLegendExpanded = settings.tlLegendExpanded;
 
   const [hourBuckets, day, segments] = await Promise.all([
     getTimeline(currentDate),
@@ -109,6 +115,7 @@ function renderRibbon(segsAbs, wrap) {
     const el = document.createElement('span');
     el.className = 'tl-seg';
     el.dataset.color = colorOf(seg.domain);
+    el.dataset.domain = seg.domain; // 图例点击高亮时按域名匹配
     el.style.left = `${((s - vStart) / span) * 100}%`;
     el.style.width = `${Math.max(((e - s) / span) * 100, 0.15)}%`;
     if (seg.start < prevEnd) {
@@ -169,24 +176,86 @@ function renderRibbon(segsAbs, wrap) {
     main.append(reset);
   }
 
-  // 图例（域名 + 色点）
+  // 图例（域名 + 色点）：按可视区间内站点总时长降序，默认只展示 Top 6，其余折叠降噪。
   const legendBlock = document.createElement('div');
   legendBlock.className = 'tl-legend-block';
+
+  const domainTotal = new Map();
+  for (const seg of segsAbs) {
+    const s = Math.max(seg.start, vStart);
+    const e = Math.min(seg.end, vEnd);
+    if (e <= s) continue;
+    domainTotal.set(seg.domain, (domainTotal.get(seg.domain) ?? 0) + (e - s));
+  }
+  const domains = [...colorMap.keys()].sort(
+    (a, b) => (domainTotal.get(b) ?? 0) - (domainTotal.get(a) ?? 0)
+  );
+
   const legend = document.createElement('div');
   legend.className = 'legend-row';
-  for (const [domain, color] of colorMap) {
-    const item = document.createElement('span');
+  const shownDomains = tlLegendExpanded ? domains : domains.slice(0, LEGEND_TOP_N);
+  for (const domain of shownDomains) {
+    const item = document.createElement('button');
+    item.type = 'button';
     item.className = 'legend-item';
+    item.dataset.domain = domain;
+    item.classList.toggle('active', highlightDomain === domain);
+    item.setAttribute('aria-pressed', String(highlightDomain === domain));
     const dot = document.createElement('span');
     dot.className = 'pie-dot';
-    dot.dataset.color = color;
+    dot.dataset.color = colorMap.get(domain);
     item.append(dot, document.createTextNode(domain));
+    // 点击图例：只高亮该站点的色块，其余降低透明度；再次点击取消。
+    item.addEventListener('click', () => {
+      highlightDomain = highlightDomain === domain ? null : domain;
+      applyHighlight(legend);
+    });
     legend.append(item);
   }
   legendBlock.append(legend);
+
+  // 展开全部 / 收起：站点数超过 Top N 时才出现，靠右放置，不增加视觉权重。
+  if (domains.length > LEGEND_TOP_N) {
+    const toggleRow = document.createElement('div');
+    toggleRow.className = 'tl-legend-toggle-row';
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'btn btn-ghost btn-sm tl-legend-toggle';
+    updateLegendToggle(toggle, domains.length);
+    toggle.addEventListener('click', async () => {
+      tlLegendExpanded = !tlLegendExpanded;
+      // 偏好持久化，跨日与跨刷新保持；重绘时间轴与图例。
+      await saveSettings({ tlLegendExpanded });
+      renderRibbon(segsAbs, wrap);
+    });
+    toggleRow.append(toggle);
+    legendBlock.append(toggleRow);
+  }
   wrap.append(legendBlock);
+  applyHighlight(legend);
 
   attachBrush(strip, segsAbs, wrap, vStart, span);
+}
+
+/** 按当前 highlightDomain 给色块加/去淡化样式。 */
+function applyHighlight(legend) {
+  const wrap = $('timeline');
+  for (const el of wrap.querySelectorAll('.tl-seg')) {
+    const hit = !highlightDomain || el.dataset.domain === highlightDomain;
+    el.classList.toggle('dim', !hit);
+  }
+  if (legend) {
+    for (const item of legend.querySelectorAll('.legend-item')) {
+      const active = item.dataset.domain === highlightDomain;
+      item.classList.toggle('active', active);
+      item.setAttribute('aria-pressed', String(active));
+    }
+  }
+}
+
+function updateLegendToggle(toggle, count) {
+  toggle.textContent = tlLegendExpanded ? t('showLess') : t('tlLegendMore', { n: count });
+  toggle.setAttribute('aria-expanded', String(tlLegendExpanded));
 }
 
 /** brush 拖选：按住拖动选出时间区间（约 2~4 小时最实用），松开即放大。 */
@@ -352,6 +421,7 @@ function goto(key) {
   currentDate = key;
   view.start = null;
   view.end = null;
+  highlightDomain = null; // 切换日期后高亮无意义，一并复位
   history.replaceState(null, '', `timeline.html?date=${key}`);
   render();
 }

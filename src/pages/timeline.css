@@ -113,6 +113,11 @@
   opacity: 0.8;
 }
 
+/* 图例点击高亮：未选中的色块整体淡化（放在 lane2 之后以覆盖其透明度） */
+.tl-seg.dim {
+  opacity: 0.12;
+}
+
 /* brush 拖选矩形 */
 .tl-brush-rect {
   position: absolute;
@@ -133,6 +138,42 @@
   border-top: 1px solid var(--border);
   margin-top: 16px;
   padding-top: 12px;
+}
+
+/* 图例项为可点击按钮：重置按钮默认样式，视觉与纯文本一致 */
+.tl-legend-block .legend-item {
+  background: none;
+  border: none;
+  padding: 1px 5px;
+  margin: -1px -5px;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.12s;
+}
+
+.tl-legend-block .legend-item:hover {
+  background: var(--accent);
+}
+
+/* 点击高亮态：仅加粗 + 底色，不放大不加边框 */
+.tl-legend-block .legend-item.active {
+  background: var(--accent);
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+/* 「展开全部 / 收起」：靠右的小号幽灵按钮，不增加视觉权重 */
+.tl-legend-toggle-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+
+.tl-legend-toggle {
+  font-size: 12px;
+  color: var(--muted-foreground);
 }
 
 .tl-seg[data-color='1'] { background: var(--chart-1); }
