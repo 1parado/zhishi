@@ -53,12 +53,13 @@ function renderActiveTab() {
       break;
     case 'limits':
       renderLimits(latestSettings);
+      renderHeartbeat(latestSettings); // 视频心跳卡片已移入网站限额页
       break;
     case 'health':
       renderHealth(latestSettings);
       break;
     case 'data':
-      renderHeartbeat(latestSettings);
+      // 导出 / 清除为静态卡片，无需动态渲染。
       break;
     case 'settings':
       renderSettings(latestSettings);

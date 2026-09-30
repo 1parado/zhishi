@@ -116,13 +116,6 @@
             </div>
           </div>
 
-          <form class="card card-pad limit-form" id="limitForm">
-            <input class="input" id="limitDomain" type="text" placeholder="网站域名，如 bilibili.com" data-i18n-placeholder="domainPlaceholder" required />
-            <input class="input num" id="limitMinutes" type="number" min="5" max="1440" value="30" required aria-label="每日分钟数" data-i18n-aria="limitMinutesAria" />
-            <span class="muted" data-i18n="minutesPerDay">分钟 / 天</span>
-            <button class="btn btn-sm" type="submit" data-i18n="add">添加</button>
-          </form>
-
           <div class="card limit-toolbar">
             <input class="input" id="limitSearch" type="search" placeholder="按网站名查找…" data-i18n-placeholder="searchPlaceholder" aria-label="按网站名查找限额" data-i18n-aria="searchPlaceholder" />
             <div class="segmented" role="group" aria-label="限额筛选条件" id="limitFilter">
@@ -133,7 +126,30 @@
             </div>
           </div>
 
+          <form class="card card-pad limit-form" id="limitForm">
+            <input class="input" id="limitDomain" type="text" placeholder="网站域名，如 bilibili.com" data-i18n-placeholder="domainPlaceholder" required />
+            <input class="input num" id="limitMinutes" type="number" min="5" max="1440" value="30" required aria-label="每日分钟数" data-i18n-aria="limitMinutesAria" />
+            <span class="muted" data-i18n="minutesPerDay">分钟 / 天</span>
+            <button class="btn btn-sm" type="submit" data-i18n="add">添加</button>
+          </form>
+
           <div class="card" id="limitList"></div>
+
+          <div class="card card-pad">
+            <div class="limit-master">
+              <div>
+                <h2 class="card-title" data-i18n="hbTitle">视频心跳</h2>
+                <p class="card-desc" data-i18n="hbDesc">对以下站点，页面正在播放音视频时持续计时（含画中画与后台窗口），不受「60 秒无输入视为离开」的闲置判定影响。也可以在视频网站页面右键快速开关。</p>
+                <p class="card-desc num" id="heartbeatStatus"></p>
+              </div>
+              <button class="switch" role="switch" id="heartbeatSwitch" aria-label="视频心跳开关" data-i18n-aria="hbTitle"></button>
+            </div>
+            <div class="chip-row" id="heartbeatSites"></div>
+            <form class="limit-form heartbeat-form" id="heartbeatForm">
+              <input class="input" id="heartbeatDomain" type="text" placeholder="域名，如 youtube.com" data-i18n-placeholder="hbDomainPlaceholder" required />
+              <button class="btn btn-sm" type="submit" data-i18n="hbAdd">添加站点</button>
+            </form>
+          </div>
         </section>
 
         <!-- 健康提醒 -->
@@ -190,22 +206,6 @@
 
         <!-- 计时与数据 -->
         <section id="tab-data" class="panel" hidden>
-          <div class="card card-pad">
-            <div class="limit-master">
-              <div>
-                <h2 class="card-title" data-i18n="hbTitle">视频心跳</h2>
-                <p class="card-desc" data-i18n="hbDesc">对以下站点，页面正在播放音视频时持续计时（含画中画与后台窗口），不受「60 秒无输入视为离开」的闲置判定影响。也可以在视频网站页面右键快速开关。</p>
-                <p class="card-desc num" id="heartbeatStatus"></p>
-              </div>
-              <button class="switch" role="switch" id="heartbeatSwitch" aria-label="视频心跳开关" data-i18n-aria="hbTitle"></button>
-            </div>
-            <div class="chip-row" id="heartbeatSites"></div>
-            <form class="limit-form heartbeat-form" id="heartbeatForm">
-              <input class="input" id="heartbeatDomain" type="text" placeholder="域名，如 youtube.com" data-i18n-placeholder="hbDomainPlaceholder" required />
-              <button class="btn btn-sm" type="submit" data-i18n="hbAdd">添加站点</button>
-            </form>
-          </div>
-
           <div class="card card-pad">
             <h2 class="card-title" data-i18n="exportTitle">导出</h2>
             <p class="card-desc" data-i18n="exportDesc">按天、按域名导出全部记录。</p>
