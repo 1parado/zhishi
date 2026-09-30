@@ -1,5 +1,6 @@
 import { dateKey, shortDate, shiftDateKey, sumSeconds } from '../lib/pure.js';
 import { applyI18n, fmtDuration, initI18n, t } from '../lib/i18n.js';
+import { initTheme } from '../lib/theme.js';
 import { getSegmentsByDate } from '../lib/idb.js';
 import { getDay, getTimeline } from '../background/store.js';
 import { getSettings, saveSettings } from '../lib/settings.js';
@@ -40,6 +41,7 @@ function fmtClock(ms) {
 async function render() {
   await initI18n();
   await applyI18n();
+  await initTheme();
   const settings = await getSettings();
   tlLegendExpanded = settings.tlLegendExpanded;
 

@@ -19,6 +19,8 @@ export const DEFAULT_SETTINGS = {
   tlLegendExpanded: false,
   // 界面语言：auto 跟随浏览器语言，或强制 zh / en。
   locale: 'auto',
+  // 主题：auto 跟随系统，或强制 light / dark。
+  theme: 'auto',
   // 网站限额总开关 + 逐条规则：
   // { id, domain, minutes, enabled, schedule?: { from, to } }
   // schedule 存在时，该时间窗内直接拦截（支持跨零点），不受每日分钟数影响。
@@ -31,6 +33,8 @@ export const DEFAULT_SETTINGS = {
     sit: { enabled: false, intervalMin: 45 },
     activeHours: { mode: 'all', from: '09:00', to: '22:00' },
   },
+  // 专注模式：开启后仅白名单站点可访问，其余一律跳转拦截页（与限额相互独立）。
+  focus: { enabled: false, sites: [] },
   // 视频心跳：对这些站点，播放音视频期间不受闲置判定暂停。
   heartbeat: { enabled: true, sites: ['bilibili.com', 'youtube.com'] },
   // 限额规则自增 id，同时用作拦截判定与展示排序。
@@ -117,7 +121,14 @@ function normalize(raw) {
   if (!['day', 'week'].includes(merged.topSitesRange)) merged.topSitesRange = 'week';
   merged.tlLegendExpanded = merged.tlLegendExpanded === true;
   if (!['zh', 'en'].includes(merged.locale)) merged.locale = 'auto';
+  if (!['light', 'dark', 'auto'].includes(merged.theme)) merged.theme = 'auto';
 
+  merged.focus = {
+    enabled: merged.focus?.enabled === true,
+    sites: (Array.isArray(merged.focus?.sites) ? merged.focus.sites : []).filter(
+      (s) => typeof s === 'string' && s.trim()
+    ),
+  };
   merged.heartbeat = {
     enabled: merged.heartbeat?.enabled !== false,
     sites: (Array.isArray(merged.heartbeat?.sites) ? merged.heartbeat.sites : []).filter(

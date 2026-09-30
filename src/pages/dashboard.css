@@ -30,10 +30,14 @@
 }
 
 .github-link {
-  margin-left: auto;
   align-self: center;
   color: var(--muted-foreground);
   display: inline-flex;
+}
+
+#dashThemeSwitch {
+  margin-left: auto;
+  align-self: center;
 }
 
 .github-link:hover {
@@ -380,6 +384,69 @@
 .heartbeat-form .input {
   flex: 1;
   min-width: 200px;
+}
+
+/* 专注模式卡片：开启时轻微着色提示状态 */
+.focus-card.focus-on {
+  background: color-mix(in srgb, var(--chart-1) 5%, var(--card));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--chart-1) 30%, transparent);
+}
+
+/* 白名单空态：一行安静小字（不带公共 .empty 的品牌时钟图标） */
+.focus-empty {
+  font-size: 13px;
+  padding: 2px 0;
+}
+
+/* 分享卡片预览弹层 */
+.share-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+}
+
+.share-modal[hidden] {
+  display: none;
+}
+
+.share-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgb(15 23 42 / 0.55);
+  backdrop-filter: blur(4px);
+}
+
+.share-body {
+  position: relative;
+  max-width: min(560px, calc(100vw - 48px));
+  max-height: calc(100vh - 64px);
+  overflow: auto;
+  border-radius: 14px;
+  background: var(--card);
+  padding: 14px;
+  box-shadow: 0 24px 64px rgb(15 23 42 / 0.35);
+}
+
+.share-body img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+
+.share-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.section-head-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 /* 限额时段屏蔽编辑器 */

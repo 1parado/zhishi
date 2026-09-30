@@ -6,7 +6,7 @@
  * （整个浏览器会话内存活），每个事件结算上一段时长后立刻重新评估当前标签页。
  */
 
-import { classifyUrl, capChunk, dateKey, inTimeWindow } from '../lib/pure.js';
+import { classifyUrl, capChunk, dateKey, inTimeWindow, isFocusBlocked } from '../lib/pure.js';
 import { getSettings } from '../lib/settings.js';
 import { addSegmentRows } from '../lib/idb.js';
 import { addSeconds, getDay, getGrants } from './store.js';
@@ -190,8 +190,12 @@ async function restartSession(idleState) {
   const domain = classifyUrl(tab.url);
   if (!domain) return;
 
-  if (await isBlocked(domain)) {
-    const url = chrome.runtime.getURL(`src/pages/block.html?domain=${encodeURIComponent(domain)}`);
+  const reason = await blockReason(domain);
+  if (reason) {
+    const suffix = reason === 'focus' ? '&reason=focus' : '';
+    const url = chrome.runtime.getURL(
+      `src/pages/block.html?domain=${encodeURIComponent(domain)}${suffix}`
+    );
     if (!tab.url || !tab.url.startsWith(chrome.runtime.getURL(''))) {
       await chrome.tabs.update(tab.id, { url });
     }
@@ -205,23 +209,32 @@ async function restartSession(idleState) {
   });
 }
 
-/** 该域名今天是否已触达限额或处于时段屏蔽窗口（且未处于放行期）。 */
-export async function isBlocked(domain) {
+/**
+ * 拦截原因：'focus'（专注模式且不在白名单）/'limit'（触达限额或时段屏蔽）/ null（不拦截）。
+ * 专注模式优先于限额判定；放行记录只对限额生效，专注模式没有放行窗口。
+ */
+export async function blockReason(domain) {
   const settings = await getSettings();
-  if (!settings.limitsEnabled) return false;
+  if (isFocusBlocked(domain, settings.focus)) return 'focus';
+  if (!settings.limitsEnabled) return null;
   const limit = settings.limits.find((l) => l.enabled && l.domain === domain && l.minutes > 0);
-  if (!limit) return false;
+  if (!limit) return null;
 
   const grants = await getGrants();
-  if ((grants[domain] || 0) > Date.now()) return false;
+  if ((grants[domain] || 0) > Date.now()) return null;
 
   // 时段屏蔽：窗口内直接拦截，支持跨零点。
   if (limit.schedule && inTimeWindow(new Date(), limit.schedule.from, limit.schedule.to)) {
-    return true;
+    return 'limit';
   }
 
   const today = await getDay(dateKey());
-  return (today[domain] || 0) >= limit.minutes * 60;
+  return (today[domain] || 0) >= limit.minutes * 60 ? 'limit' : null;
+}
+
+/** 该域名今天是否已触达限额、处于时段屏蔽窗口，或被专注模式拦截（且未处于放行期）。 */
+export async function isBlocked(domain) {
+  return (await blockReason(domain)) !== null;
 }
 
 /** 当前正在计时的会话（popup 显示「正在记录」用）。 */

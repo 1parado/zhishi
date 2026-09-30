@@ -138,6 +138,15 @@ export function goalVariant(usedSeconds, goalSeconds) {
   return 'ok';
 }
 
+/**
+ * 专注模式拦截判定：开启且域名不在白名单时拦截。
+ * 白名单按域名精确匹配（与 classifyUrl 的输出口径一致，已去 www.）。
+ */
+export function isFocusBlocked(domain, focus) {
+  if (!focus?.enabled || !domain) return false;
+  return !(Array.isArray(focus.sites) && focus.sites.includes(domain));
+}
+
 /** 全部历史导出为 CSV：date,domain,seconds。 */
 export function toCSV(dailyMap) {
   const rows = ['date,domain,seconds'];

@@ -10,6 +10,7 @@ import {
   fmtDurationCompact,
   goalVariant,
   inTimeWindow,
+  isFocusBlocked,
   isValidTime,
   shiftDateKey,
   shortDate,
@@ -130,6 +131,18 @@ test('goalVariant 状态', () => {
   assert.equal(goalVariant(70, 100), 'ok');
   assert.equal(goalVariant(85, 100), 'near');
   assert.equal(goalVariant(100, 100), 'over');
+});
+
+test('isFocusBlocked 白名单拦截', () => {
+  const focus = { enabled: true, sites: ['github.com'] };
+  assert.equal(isFocusBlocked('github.com', focus), false);
+  assert.equal(isFocusBlocked('bilibili.com', focus), true);
+  assert.equal(isFocusBlocked(null, focus), false); // 内部页面无域名，不拦
+  // 关闭时不拦
+  assert.equal(isFocusBlocked('bilibili.com', { enabled: false, sites: [] }), false);
+  // 结构缺失时安全兜底
+  assert.equal(isFocusBlocked('bilibili.com', undefined), false);
+  assert.equal(isFocusBlocked('bilibili.com', { enabled: true }), true);
 });
 
 test('toCSV 导出排序稳定', () => {

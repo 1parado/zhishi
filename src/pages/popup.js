@@ -1,6 +1,7 @@
 import { classifyUrl, dateKey, goalVariant, sumSeconds } from '../lib/pure.js';
 import { getSettings, saveSettings } from '../lib/settings.js';
 import { applyI18n, fmtDuration, fmtDurationCompact, initI18n, refreshLocale, t } from '../lib/i18n.js';
+import { applyTheme, initTheme } from '../lib/theme.js';
 import { siteIconUrl } from '../lib/site-icons.js';
 import { getDay } from '../background/store.js';
 import { currentSession } from '../background/tracker.js';
@@ -31,6 +32,8 @@ async function render() {
   renderToday(today, settings);
   renderSites(today, session);
   renderSwitches(settings);
+  applyTheme(settings.theme);
+  renderThemeSwitch(settings.theme);
 }
 
 function renderStatus(session, today, activeTab) {
@@ -38,8 +41,6 @@ function renderStatus(session, today, activeTab) {
   if (session?.domain) {
     const live = (today[session.domain] || 0) + (Date.now() - session.startedAt) / 1000;
     el.textContent = t('statusRecording', { domain: session.domain, time: fmtDuration(live) });
-  } else if (activeTab && classifyUrl(activeTab.url) === null) {
-    el.textContent = t('statusInternal');
   } else {
     el.textContent = t('statusPaused');
   }
@@ -151,6 +152,14 @@ function renderSwitches(settings) {
   const limit = $('limitSwitch');
   limit.setAttribute('aria-checked', String(settings.limitsEnabled));
   $('limitSub').textContent = settings.limitsEnabled ? t('limitsBlocking') : t('off');
+
+  const focus = $('focusSwitch');
+  focus.setAttribute('aria-checked', String(settings.focus?.enabled === true));
+  const focusSites = settings.focus?.sites?.length ?? 0;
+  $('focusSub').textContent =
+    settings.focus?.enabled === true
+      ? t('focusOnSub', { n: focusSites })
+      : t('focusOffSub');
 }
 
 function bindSwitches() {
@@ -161,6 +170,12 @@ function bindSwitches() {
   $('limitSwitch').addEventListener('click', async () => {
     const settings = await getSettings();
     await saveSettings({ limitsEnabled: !settings.limitsEnabled });
+  });
+  $('focusSwitch').addEventListener('click', async () => {
+    const settings = await getSettings();
+    await saveSettings({ focus: { enabled: !(settings.focus?.enabled === true) } });
+    // 开关后立即重估当前标签页：白名单外站点马上跳拦截页 / 关闭后马上放行。
+    chrome.runtime.sendMessage({ type: 'zhishi-popup-opened' }).catch(() => {});
   });
 
   // 必须用 tabs.create 开新标签页：普通链接会把 popup 自身导航走，
@@ -176,7 +191,10 @@ let sessionRenderTimer = null;
 chrome.storage.onChanged.addListener(async (changes, area) => {
   if (area === 'local' && (changes.settings || Object.keys(changes).some((k) => k.startsWith('d:')))) {
     if (changes.settings) {
-      refreshLocale(changes.settings.newValue?.locale);
+      const s = changes.settings.newValue;
+      refreshLocale(s?.locale);
+      applyTheme(s?.theme);
+      renderThemeSwitch(s?.theme);
       await applyI18n();
     }
     render();
@@ -195,6 +213,13 @@ function renderLocaleSwitch(locale) {
   }
 }
 
+// 主题迷你切换：立即生效并持久化。
+function renderThemeSwitch(theme) {
+  for (const segment of document.querySelectorAll('#popupTheme .segment')) {
+    segment.setAttribute('aria-pressed', String(segment.dataset.theme === theme));
+  }
+}
+
 for (const segment of document.querySelectorAll('#popupLocale .segment')) {
   segment.addEventListener('click', async () => {
     refreshLocale(segment.dataset.locale);
@@ -204,9 +229,19 @@ for (const segment of document.querySelectorAll('#popupLocale .segment')) {
   });
 }
 
+for (const segment of document.querySelectorAll('#popupTheme .segment')) {
+  segment.addEventListener('click', async () => {
+    const theme = segment.dataset.theme;
+    applyTheme(theme);
+    renderThemeSwitch(theme);
+    await saveSettings({ theme });
+  });
+}
+
 bindSwitches();
 // 打开瞬间通知后台立即结算续上会话：焦点切换事件可能抢先清掉会话。
 chrome.runtime.sendMessage({ type: 'zhishi-popup-opened' }).catch(() => {});
 await initI18n();
 await applyI18n();
+await initTheme();
 render().then(startTicker);

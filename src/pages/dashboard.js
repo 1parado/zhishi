@@ -19,6 +19,8 @@ import {
   setLimitEnabled,
 } from '../lib/settings.js';
 import { applyI18n, fmtDuration, initI18n, refreshLocale, t } from '../lib/i18n.js';
+import { applyTheme, initTheme } from '../lib/theme.js';
+import { renderShareCardDataURL } from '../lib/share-card.js';
 import { siteIconUrl } from '../lib/site-icons.js';
 import { clearAllData, getAllDays } from '../background/store.js';
 
@@ -54,6 +56,9 @@ function renderActiveTab() {
     case 'limits':
       renderLimits(latestSettings);
       renderHeartbeat(latestSettings); // 视频心跳卡片已移入网站限额页
+      break;
+    case 'allowlist':
+      renderFocus(latestSettings);
       break;
     case 'health':
       renderHealth(latestSettings);
@@ -954,6 +959,108 @@ async function renderHeartbeatStatus() {
 renderHeartbeatStatus();
 setInterval(renderHeartbeatStatus, 20_000);
 
+/* ---------- 专注模式 ---------- */
+
+function renderFocus(settings) {
+  const focus = settings.focus || { enabled: false, sites: [] };
+  $('focusSwitch').setAttribute('aria-checked', String(focus.enabled));
+  $('focusSwitch').closest('.focus-card').classList.toggle('focus-on', focus.enabled);
+
+  const row = $('focusSites');
+  row.textContent = '';
+  if (!focus.sites.length) {
+    const empty = document.createElement('p');
+    // 不用公共 .empty（带品牌时钟图标），白名单空态只要一行安静的小字。
+    empty.className = 'muted focus-empty';
+    empty.textContent = t('focusEmpty');
+    row.append(empty);
+    return;
+  }
+  for (const site of focus.sites) {
+    const chip = document.createElement('span');
+    chip.className = 'chip';
+    chip.append(document.createTextNode(site));
+
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.textContent = '✕';
+    del.setAttribute('aria-label', t('focusRemoveAria', { domain: site }));
+    del.addEventListener('click', async () => {
+      const s = await getSettings();
+      await saveSettings({ focus: { sites: s.focus.sites.filter((x) => x !== site) } });
+    });
+
+    chip.append(del);
+    row.append(chip);
+  }
+}
+
+$('focusSwitch').addEventListener('click', async () => {
+  const s = await getSettings();
+  await saveSettings({ focus: { enabled: !(s.focus?.enabled === true) } });
+  // 立即重估当前标签页：白名单外站点马上跳拦截页 / 关闭后马上放行。
+  chrome.runtime.sendMessage({ type: 'zhishi-popup-opened' }).catch(() => {});
+});
+
+$('focusForm').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const domain = normalizeDomain($('focusDomain').value);
+  if (!domain) return;
+  const s = await getSettings();
+  if (s.focus.sites.includes(domain)) return;
+  await saveSettings({ focus: { sites: [...s.focus.sites, domain] } });
+  $('focusDomain').value = '';
+});
+
+/* ---------- 分享卡片 ---------- */
+
+function shareStrings() {
+  const locale = document.documentElement.lang === 'en' ? 'en-US' : 'zh-CN';
+  const fmtWd = new Intl.DateTimeFormat(locale, { weekday: 'short' });
+  // 2026-09-21 是已知周一，依次取周一..周日标签
+  const weekLabels = Array.from({ length: 7 }, (_, i) =>
+    fmtWd.format(new Date(2026, 8, 21 + i))
+  );
+  return {
+    brand: '知时',
+    tagline: t('brandSubDash'),
+    report: t('shareReport'),
+    hourShort: t('hourShort'),
+    totalLabel: t('shareTotalLabel'),
+    activeDaysN: t('shareActiveDaysN'),
+    dailyAvg: t('shareDailyAvg'),
+    peakDay: t('sharePeakDay'),
+    topSite: t('shareTopSite'),
+    sitesTitle: t('shareSitesTitle'),
+    heatTitle: t('shareHeatTitle'),
+    byWeekday: t('shareByWeekday'),
+    weekLabels,
+    less: t('heatFew'),
+    more: t('heatMany'),
+    empty: t('shareEmpty'),
+    generated: t('shareGenerated'),
+  };
+}
+
+$('shareCardBtn')?.addEventListener('click', async () => {
+  const days = await getAllDays();
+  const url = renderShareCardDataURL(days, dateKey(), shareStrings());
+  $('sharePreview').src = url;
+  $('shareDownload').href = url;
+  $('shareModal').hidden = false;
+});
+
+for (const el of document.querySelectorAll('#shareModal [data-close]')) {
+  el.addEventListener('click', () => {
+    $('shareModal').hidden = true;
+  });
+}
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && !$('shareModal').hidden) {
+    $('shareModal').hidden = true;
+  }
+});
+
 /* ---------- 数据 ---------- */
 
 function download(filename, content, type) {
@@ -1004,12 +1111,21 @@ async function render() {
   const { days, settings } = await loadAll();
   latestDays = days;
   latestSettings = settings;
+  applyTheme(settings.theme);
+  renderThemeSwitch(settings.theme);
   renderActiveTab();
 }
 
 function renderLocaleSwitch(locale) {
   for (const segment of document.querySelectorAll('#localeSwitch .segment')) {
     segment.setAttribute('aria-pressed', String(segment.dataset.locale === locale));
+  }
+}
+
+// 主题切换：保存偏好 → 立即套用 → 重渲染当前选项卡。
+function renderThemeSwitch(theme) {
+  for (const segment of document.querySelectorAll('#dashThemeSwitch .segment')) {
+    segment.setAttribute('aria-pressed', String(segment.dataset.theme === theme));
   }
 }
 
@@ -1023,12 +1139,24 @@ for (const segment of document.querySelectorAll('#localeSwitch .segment')) {
   });
 }
 
+for (const segment of document.querySelectorAll('#dashThemeSwitch .segment')) {
+  segment.addEventListener('click', async () => {
+    const theme = segment.dataset.theme;
+    applyTheme(theme);
+    renderThemeSwitch(theme);
+    await saveSettings({ theme });
+  });
+}
+
 // 后台每分钟落盘，保持页面数据最新。
 let renderTimer = null;
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== 'local') return;
   if (changes.settings) {
-    refreshLocale(changes.settings.newValue?.locale);
+    const s = changes.settings.newValue;
+    refreshLocale(s?.locale);
+    applyTheme(s?.theme);
+    renderThemeSwitch(s?.theme);
     applyI18n().then(renderActiveTab);
   }
   clearTimeout(renderTimer);
@@ -1038,16 +1166,22 @@ chrome.storage.onChanged.addListener((changes, area) => {
 // 初始化语言（读取保存的偏好）并套用静态文案，再渲染数据。
 await initI18n();
 await applyI18n();
+await initTheme();
 render();
 
-// 深链支持：右键菜单 / 外部链接可带 ?tab=limits&add=domain，
-// 直接切到对应选项卡并预填域名，焦点落到分钟输入框。
+// 深链支持：右键菜单 / 外部链接可带 ?tab=limits&add=domain（或 tab=allowlist），
+// 直接切到对应选项卡并预填域名，焦点落到输入框。
 const deepLink = new URLSearchParams(location.search);
 if (deepLink.get('tab')) showTab(deepLink.get('tab'));
 if (deepLink.get('add')) {
-  $('limitDomain').value = deepLink.get('add');
-  $('limitMinutes').focus();
-  $('limitMinutes').select();
+  if (deepLink.get('tab') === 'allowlist') {
+    $('focusDomain').value = deepLink.get('add');
+    $('focusDomain').focus();
+  } else {
+    $('limitDomain').value = deepLink.get('add');
+    $('limitMinutes').focus();
+    $('limitMinutes').select();
+  }
 }
 
 /**
