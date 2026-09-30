@@ -169,7 +169,7 @@ function renderWeekLine(week, wrap) {
   const top = 10;
   const todayKey = dateKey();
   const pts = week.map((day, i) => [
-    8 + (i * (W - 16)) / 6,
+    (i + 0.5) * W / 7, // 7 等分列中心，与下方标签 grid(gap:0) 列中心严格对齐
     H - bottom - (day.seconds / max) * (H - bottom - top),
   ]);
 
@@ -197,6 +197,7 @@ function renderWeekPie(week, wrap) {
   wrap.className = '';
   const todayKey = dateKey();
   const total = week.reduce((acc, day) => acc + day.seconds, 0);
+  pieWeekData = { week, total };
 
   const legend = document.createElement('div');
   legend.className = 'legend-row';
@@ -218,6 +219,7 @@ function renderWeekPie(week, wrap) {
       const seg = svgEl('circle', {
         class: 'pie-seg',
         'data-color': DAY_COLORS[i],
+        'data-i': String(i),
         cx: 50,
         cy: 50,
         r: 38,
@@ -225,15 +227,13 @@ function renderWeekPie(week, wrap) {
         'stroke-dashoffset': -acc * C,
         transform: 'rotate(-90 50 50)',
       });
-      const title = svgEl('title');
-      title.textContent = `${shortDate(day.key)} · ${fmtDuration(day.seconds)}`;
-      seg.append(title);
       svg.append(seg);
       acc += frac;
     }
 
     const item = document.createElement('span');
     item.className = 'legend-item';
+    item.dataset.i = String(i);
     const dot = document.createElement('span');
     dot.className = 'pie-dot';
     dot.dataset.color = DAY_COLORS[i];
@@ -411,6 +411,67 @@ heatGrid?.addEventListener('mouseleave', () => {
 heatGrid?.addEventListener('click', (event) => {
   const cell = event.target.closest('.heat-cell.has-data');
   if (cell) location.href = `timeline.html?date=${cell.dataset.date}`;
+});
+
+// 饼图悬停浮层（事件委托，图表重 build 后依然有效）。
+let pieWeekData = { week: [], total: 0 };
+const pieTip = $('pieTip');
+const pieWrapEl = $('weekChart');
+
+function pieTipContent(i) {
+  const { week, total } = pieWeekData;
+  const day = week[i];
+  if (!day) return null;
+  const [y, m, d] = day.key.split('-').map(Number);
+  const locale = document.documentElement.lang === 'en' ? 'en-US' : 'zh-CN';
+  const dateText = new Intl.DateTimeFormat(locale, {
+    weekday: 'short', month: 'long', day: 'numeric',
+  }).format(new Date(y, m - 1, d));
+  const pct = total > 0 ? Math.round((day.seconds / total) * 100) : 0;
+  const tip = document.createElement('div');
+  const title = document.createElement('div');
+  title.className = 'tip-title';
+  title.textContent = dateText;
+  const line = document.createElement('div');
+  line.className = 'tip-line';
+  line.textContent = `${fmtDuration(day.seconds)} · ${pct}%`;
+  tip.append(title, line);
+  return tip;
+}
+
+function pieHoverIndex(event) {
+  const seg = event.target.closest('.pie-seg');
+  if (seg && seg.dataset.i != null) return Number(seg.dataset.i);
+  const item = event.target.closest('.legend-item');
+  if (item && item.dataset.i != null) return Number(item.dataset.i);
+  return -1;
+}
+
+function clearPieActive() {
+  if (!pieWrapEl) return;
+  for (const s of pieWrapEl.querySelectorAll('.pie-seg.is-active')) s.classList.remove('is-active');
+}
+
+pieWrapEl?.addEventListener('mousemove', (event) => {
+  if (!pieTip) return;
+  const i = pieHoverIndex(event);
+  if (i < 0) { pieTip.hidden = true; clearPieActive(); return; }
+  clearPieActive();
+  const seg = pieWrapEl.querySelector(`.pie-seg[data-i="${i}"]`);
+  if (seg) seg.classList.add('is-active');
+  pieTip.textContent = '';
+  const content = pieTipContent(i);
+  if (!content) { pieTip.hidden = true; return; }
+  pieTip.append(content);
+  pieTip.hidden = false;
+  const tipWidth = pieTip.offsetWidth || 160;
+  pieTip.style.left = `${Math.min(event.clientX + 14, window.innerWidth - tipWidth - 10)}px`;
+  pieTip.style.top = `${event.clientY + 14}px`;
+});
+
+pieWrapEl?.addEventListener('mouseleave', () => {
+  if (pieTip) pieTip.hidden = true;
+  clearPieActive();
 });
 
 $('todayCard').addEventListener('click', () => {

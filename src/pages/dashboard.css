@@ -193,6 +193,8 @@
   height: auto;
   padding-top: 0;
   align-items: initial;
+  justify-items: center; /* 标签在各自格子内居中，与折线点列中心对齐 */
+  gap: 0; /* 7 等分严格对齐折线点（点取每列中心 (i+0.5)*W/7） */
 }
 
 .week-label.is-today {
@@ -235,7 +237,7 @@
 .pie-seg {
   fill: none;
   stroke-width: 20;
-  transition: stroke-dasharray 0.4s ease-out;
+  transition: stroke-dasharray 0.4s ease-out, stroke-width 0.18s ease, opacity 0.18s ease;
 }
 
 .legend-row {
@@ -270,6 +272,12 @@
 .pie-seg[data-color='5'] { stroke: var(--chart-5); }
 .pie-seg[data-color='6'] { stroke: color-mix(in srgb, var(--chart-1) 45%, var(--card)); }
 .pie-seg[data-color='7'] { stroke: color-mix(in srgb, var(--chart-2) 45%, var(--card)); }
+
+/* 饼图悬停：高亮当前切片、淡化其余（图例项 data-i 与切片联动，由 JS 加 is-active） */
+.pie-seg.is-active { stroke-width: 26; }
+.pie-wrap:has(.pie-seg.is-active) .pie-seg:not(.is-active) { opacity: 0.3; }
+.legend-item { cursor: default; transition: color 0.15s ease; }
+.legend-item:hover { color: var(--foreground); }
 
 /* 时段输入行 */
 
