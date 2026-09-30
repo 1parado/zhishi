@@ -389,7 +389,8 @@ heatGrid?.addEventListener('mousemove', (event) => {
   if (!heatTip) return;
   const cell = event.target.closest('.heat-cell');
   const data = cell && heatCellData[cell.dataset.date];
-  if (!data || data.seconds <= 0) {
+  // 0 用时的日期仍显示「日期 + 总计 0」；仅对透明占位格（ghost，无 data）隐藏。
+  if (!data) {
     heatTip.hidden = true;
     return;
   }
