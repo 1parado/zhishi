@@ -1,9 +1,14 @@
 /**
- * 网站品牌色图标：内联 SVG data URL，零网络、零存储、带内存缓存。
- * 已知站点用品牌色，未知站点按域名哈希取色。
+ * 网站图标：常用站点显示真实品牌 logo SVG，其余按域名哈希取色显示字母图标。
+ * 全部内联为 data URI，零网络、零异步资源请求、带内存缓存——
+ * 打开页面时图标与 DOM 同帧绘制，无加载闪烁。
+ *
+ * 真实 SVG 来源：Simple Icons（官方品牌矢量 + 权威品牌色），由
+ * scripts/fetch-site-icons.mjs 抓取并清洗压缩后内联到 ./site-svgs.js。
  */
+import { SITE_SVG_URLS } from './site-svgs.js';
 
-// 国内外常用站点的品牌色（hex，data URL 友好）
+// 字母回退时使用的品牌色（hex，data URL 友好）。真实 SVG 已命中的域名不再走此表。
 const BRAND_COLORS = {
   'bilibili.com': '#fb7299',
   'github.com': '#181717',
@@ -81,10 +86,15 @@ const urlCache = new Map();
 
 /**
  * 返回内联 SVG data URL 字符串，直接用作 CSS background-image。
- * SVG = 圆角方块（品牌色）+ 居中白色首字母。
+ * 优先返回真实品牌 logo（site-svgs.js 命中），否则回退为
+ * 圆角方块（品牌色）+ 居中白色首字母。
  */
 export function siteIconUrl(domain) {
   if (urlCache.has(domain)) return urlCache.get(domain);
+  if (SITE_SVG_URLS[domain]) {
+    urlCache.set(domain, SITE_SVG_URLS[domain]);
+    return SITE_SVG_URLS[domain];
+  }
 
   const color = brandColor(domain);
   const letter = domain.charAt(0).toUpperCase();
