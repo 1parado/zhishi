@@ -16,6 +16,7 @@ import {
   shortDate,
   sumSeconds,
   toCSV,
+  streakDays,
   usageLevel,
   weekSeries,
   weekdayShort,
@@ -114,6 +115,27 @@ test('weekSeries 返回最近 7 天升序', () => {
   assert.equal(series[4].key, '2026-09-25');
   assert.equal(series[4].seconds, 120);
   assert.equal(series[0].seconds, 0);
+});
+
+test('streakDays 从今天往回数连续有记录的日子', () => {
+  const days = {
+    '2026-09-25': { a: 60 },
+    '2026-09-26': { a: 60 },
+    '2026-09-27': { a: 60 },
+  };
+  assert.equal(streakDays(days, '2026-09-27'), 3);
+});
+
+test('streakDays 当天没用不断签，从昨天起算', () => {
+  const days = {
+    '2026-09-25': { a: 60 },
+    '2026-09-26': { a: 60 },
+  };
+  assert.equal(streakDays(days, '2026-09-27'), 2);
+  // 中间断档（09-23 有、09-24 无）：只数最近一段
+  days['2026-09-23'] = { a: 60 };
+  assert.equal(streakDays(days, '2026-09-27'), 2);
+  assert.equal(streakDays({}, '2026-09-27'), 0);
 });
 
 test('usageLevel 绝对时长分档（绿/黄/橙/红）', () => {

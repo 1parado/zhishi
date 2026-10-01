@@ -19,7 +19,7 @@ import {
   setLimitEnabled,
 } from '../lib/settings.js';
 import { applyI18n, fmtDuration, initI18n, refreshLocale, t } from '../lib/i18n.js';
-import { applyTheme, initTheme } from '../lib/theme.js';
+import { applyTheme, initTheme, resolvedTheme } from '../lib/theme.js';
 import { renderShareCardDataURL } from '../lib/share-card.js';
 import { siteIconUrl } from '../lib/site-icons.js';
 import { clearAllData, getAllDays } from '../background/store.js';
@@ -1039,15 +1039,155 @@ function shareStrings() {
     more: t('heatMany'),
     empty: t('shareEmpty'),
     generated: t('shareGenerated'),
+    // 日报 / 周报卡
+    badgeDay: t('shareBadgeDay'),
+    badgeWeek: t('shareBadgeWeek'),
+    todayTotal: t('shareTodayTotal'),
+    weekTotal: t('shareWeekTotal'),
+    vsYesterday: t('shareVsYesterday'),
+    vsPrev7: t('shareVsPrev7'),
+    flat: t('shareFlat'),
+    miniTitle: t('shareMiniTitle'),
+    activeSites: t('shareActiveSites'),
+    streak: t('shareStreak'),
+    streakDays: t('shareStreakDays'),
+    streakChip: t('shareStreakChip'),
+    busiestDay: t('shareBusiestDay'),
   };
 }
 
-$('shareCardBtn')?.addEventListener('click', async () => {
-  const days = await getAllDays();
-  const url = renderShareCardDataURL(days, dateKey(), shareStrings());
+// 弹窗内当前卡片类型与资料编辑状态。三个入口共用一个弹窗。
+let shareRange = 'year';
+let shareNameTimer = null;
+
+function syncShareRangeUI() {
+  for (const segment of document.querySelectorAll('#shareRange .segment')) {
+    segment.setAttribute('aria-pressed', String(segment.dataset.range === shareRange));
+  }
+}
+
+function syncShareProfileUI() {
+  const profile = latestSettings?.profile || {};
+  $('shareNameInput').value = profile.name || '';
+  $('shareShowSwitch').setAttribute('aria-checked', String(profile.show !== false));
+  const hasAvatar = !!profile.avatar;
+  $('shareAvatarPreview').src = profile.avatar || '';
+  $('shareAvatarPreview').hidden = !hasAvatar;
+  $('shareAvatarPlaceholder').hidden = hasAvatar;
+  $('shareAvatarRemove').hidden = !hasAvatar;
+}
+
+async function redrawShareCard() {
+  const days = latestDays || (await getAllDays());
+  const url = await renderShareCardDataURL({
+    days,
+    todayKey: dateKey(),
+    range: shareRange,
+    strings: shareStrings(),
+    profile: latestSettings?.profile || null,
+    theme: resolvedTheme(),
+  });
   $('sharePreview').src = url;
   $('shareDownload').href = url;
+  $('shareDownload').download = `zhishi-share-${shareRange}.png`;
+}
+
+function openShareModal(range) {
+  shareRange = range;
+  syncShareRangeUI();
+  syncShareProfileUI();
+  redrawShareCard();
   $('shareModal').hidden = false;
+}
+
+$('shareCardBtn')?.addEventListener('click', () => openShareModal('year'));
+
+// 今日 / 近 7 天统计卡内嵌分享按钮：阻断冒泡，避免触发卡片本身的跳转。
+$('shareTodayBtn')?.addEventListener('click', (event) => {
+  event.stopPropagation();
+  openShareModal('day');
+});
+$('shareTodayBtn')?.addEventListener('keydown', (event) => event.stopPropagation());
+$('shareWeekBtn')?.addEventListener('click', () => openShareModal('week'));
+
+for (const segment of document.querySelectorAll('#shareRange .segment')) {
+  segment.addEventListener('click', () => {
+    shareRange = segment.dataset.range;
+    syncShareRangeUI();
+    redrawShareCard();
+  });
+}
+
+// 昵称即时保存（防抖）并重绘。
+$('shareNameInput')?.addEventListener('input', (event) => {
+  clearTimeout(shareNameTimer);
+  shareNameTimer = setTimeout(async () => {
+    latestSettings = await saveSettings({ profile: { name: event.target.value } });
+    redrawShareCard();
+  }, 250);
+});
+
+// 头像上传：居中方形裁剪并压缩到 256×256 JPEG 存 data URL（仅本机）。
+async function compressAvatar(file) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = reject;
+      image.src = url;
+    });
+    const side = Math.min(img.naturalWidth, img.naturalHeight);
+    if (!side) throw new Error('empty image');
+    const S = 256;
+    const canvas = document.createElement('canvas');
+    canvas.width = S;
+    canvas.height = S;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, S, S);
+    ctx.drawImage(
+      img,
+      (img.naturalWidth - side) / 2,
+      (img.naturalHeight - side) / 2,
+      side,
+      side,
+      0,
+      0,
+      S,
+      S
+    );
+    return canvas.toDataURL('image/jpeg', 0.85);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+$('shareAvatarInput')?.addEventListener('change', async (event) => {
+  const file = event.target.files?.[0];
+  event.target.value = '';
+  if (!file) return;
+  try {
+    const avatar = await compressAvatar(file);
+    latestSettings = await saveSettings({ profile: { avatar } });
+    syncShareProfileUI();
+    redrawShareCard();
+  } catch {
+    // 图片解析失败：忽略本次选择
+  }
+});
+
+$('shareAvatarRemove')?.addEventListener('click', async () => {
+  latestSettings = await saveSettings({ profile: { avatar: '' } });
+  syncShareProfileUI();
+  redrawShareCard();
+});
+
+$('shareShowSwitch')?.addEventListener('click', async () => {
+  const show = latestSettings?.profile?.show === false;
+  latestSettings = await saveSettings({ profile: { show } });
+  syncShareProfileUI();
+  redrawShareCard();
 });
 
 for (const el of document.querySelectorAll('#shareModal [data-close]')) {
@@ -1059,6 +1199,11 @@ document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && !$('shareModal').hidden) {
     $('shareModal').hidden = true;
   }
+});
+
+// auto 主题下系统切换明暗时，弹窗开着就同步重绘卡片主题。
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+  if (!$('shareModal').hidden) redrawShareCard();
 });
 
 /* ---------- 数据 ---------- */
@@ -1114,6 +1259,8 @@ async function render() {
   applyTheme(settings.theme);
   renderThemeSwitch(settings.theme);
   renderActiveTab();
+  // 弹窗开着时（语言切换 / 数据落盘）同步重绘分享卡片。
+  if (!$('shareModal').hidden) redrawShareCard();
 }
 
 function renderLocaleSwitch(locale) {

@@ -37,6 +37,9 @@ export const DEFAULT_SETTINGS = {
   focus: { enabled: false, sites: [] },
   // 视频心跳：对这些站点，播放音视频期间不受闲置判定暂停。
   heartbeat: { enabled: true, sites: ['bilibili.com', 'youtube.com'] },
+  // 分享卡片上的个人信息：name 昵称、avatar 头像（压缩后的 data URL）、
+  // show 是否把昵称与头像画到卡片上。只存本机，不上传。
+  profile: { name: '', avatar: '', show: true },
   // 限额规则自增 id，同时用作拦截判定与展示排序。
   seq: 0,
 };
@@ -134,6 +137,18 @@ function normalize(raw) {
     sites: (Array.isArray(merged.heartbeat?.sites) ? merged.heartbeat.sites : []).filter(
       (s) => typeof s === 'string' && s.trim()
     ),
+  };
+  // 分享资料：昵称截断，头像只接受 data URL 且限制大小（上传侧已压缩到 256px）。
+  merged.profile = {
+    name:
+      typeof merged.profile?.name === 'string' ? merged.profile.name.trim().slice(0, 24) : '',
+    avatar:
+      typeof merged.profile?.avatar === 'string' &&
+      merged.profile.avatar.startsWith('data:image/') &&
+      merged.profile.avatar.length <= 700_000
+        ? merged.profile.avatar
+        : '',
+    show: merged.profile?.show !== false,
   };
   return merged;
 }

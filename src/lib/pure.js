@@ -130,6 +130,22 @@ export function usageLevel(seconds) {
   return 4;
 }
 
+/**
+ * 连续记录天数：从 endKey 往回数连续有正用量的日子。
+ * 当天还没用不算断签（从昨天起算），全程无记录返回 0。
+ */
+export function streakDays(dailyMap, endKey) {
+  const has = (key) => sumSeconds(dailyMap[key]) > 0;
+  let key = has(endKey) ? endKey : shiftDateKey(endKey, -1);
+  if (!has(key)) return 0;
+  let n = 0;
+  while (has(key)) {
+    n += 1;
+    key = shiftDateKey(key, -1);
+  }
+  return n;
+}
+
 /** 目标用量状态：ok（<80%）/ near（≥80%）/ over（≥100%）/ none（未启用）。 */
 export function goalVariant(usedSeconds, goalSeconds) {
   if (!goalSeconds || goalSeconds <= 0) return 'none';

@@ -125,6 +125,11 @@
   font-weight: 650;
 }
 
+/* 分享按钮在统计卡内绝对定位，卡片需作定位基准 */
+.stat-card {
+  position: relative;
+}
+
 .stat-card .card-desc {
   margin-top: 2px;
 }
@@ -420,7 +425,7 @@
 
 .share-body {
   position: relative;
-  max-width: min(560px, calc(100vw - 48px));
+  max-width: min(760px, calc(100vw - 48px));
   max-height: calc(100vh - 64px);
   overflow: auto;
   border-radius: 14px;
@@ -429,18 +434,167 @@
   box-shadow: 0 24px 64px rgb(15 23 42 / 0.35);
 }
 
-.share-body img {
+/* 左：卡片预览，右：类型切换与个人资料 */
+.share-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.share-layout img {
   display: block;
-  width: 100%;
+  width: 330px;
   height: auto;
+  flex: none;
   border-radius: 8px;
+}
+
+.share-side {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  align-self: stretch;
+}
+
+.share-side .segmented {
+  align-self: flex-start;
+}
+
+.share-profile {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) + 2px);
+  background: color-mix(in srgb, var(--muted) 40%, transparent);
+}
+
+.share-profile-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.share-avatar {
+  position: relative;
+  display: block;
+  width: 56px;
+  height: 56px;
+  flex: none;
+  cursor: pointer;
+  border-radius: 50%;
+}
+
+.share-avatar img {
+  display: block;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow:
+    0 0 0 2px var(--card),
+    0 0 0 3.5px color-mix(in srgb, var(--chart-1) 35%, transparent);
+}
+
+.share-avatar-fallback {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  color: #fff;
+  background: linear-gradient(135deg, var(--chart-1), var(--chart-2));
+}
+
+.share-avatar-fallback[hidden] {
+  display: none;
+}
+
+/* 有头像时的上传角标：提示头像可更换 */
+.share-avatar-chip {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  color: var(--muted-foreground);
+  background: var(--card);
+  border: 1px solid var(--border);
+}
+
+.share-name-field {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.share-side-label {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+.share-show-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+}
+
+#shareAvatarRemove[hidden] {
+  display: none;
 }
 
 .share-actions {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-  margin-top: 12px;
+  margin-top: auto;
+}
+
+@media (max-width: 700px) {
+  .share-layout {
+    flex-direction: column;
+  }
+
+  .share-layout img {
+    width: 100%;
+  }
+}
+
+/* 分享图标按钮：统计卡内绝对定位到右上角，其他位置（热力图卡头）内联使用 */
+.stat-share-btn {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.stat-card .stat-share-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+}
+
+.stat-share-btn:hover {
+  background: var(--muted);
+  color: var(--chart-1);
 }
 
 .section-head-right {

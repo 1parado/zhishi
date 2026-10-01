@@ -2,6 +2,7 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
+    <script src="theme-boot.js"></script>
     <link rel="stylesheet" href="shared.css" />
     <link rel="stylesheet" href="dashboard.css" />
     <title>知时 · 仪表盘</title>
@@ -45,11 +46,17 @@
         <section id="tab-overview" class="panel">
           <div class="stat-row">
             <div class="card card-pad stat-card stat-clickable" id="todayCard" role="link" tabindex="0">
+              <button class="stat-share-btn" id="shareTodayBtn" type="button" title="生成分享卡片" data-i18n-title="shareBtn" aria-label="生成分享卡片" data-i18n-aria="shareBtn">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 10.5l6.8-4M8.6 13.5l6.8 4"/></svg>
+              </button>
               <p class="card-title" data-i18n="today">今日</p>
               <p class="stat-value num" id="statToday">0 分钟</p>
               <p class="card-desc" data-i18n="viewTimeline">查看时间线 ↗</p>
             </div>
             <div class="card card-pad stat-card">
+              <button class="stat-share-btn" id="shareWeekBtn" type="button" title="生成分享卡片" data-i18n-title="shareBtn" aria-label="生成分享卡片" data-i18n-aria="shareBtn">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 10.5l6.8-4M8.6 13.5l6.8 4"/></svg>
+              </button>
               <p class="card-title" data-i18n="last7">近 7 天</p>
               <p class="stat-value num" id="statWeek">0 分钟</p>
               <p class="card-desc num" id="statWeekAvg"></p>
@@ -73,7 +80,9 @@
               <h2 class="card-title" id="yearTitle">近一年</h2>
               <div class="section-head-right">
                 <span class="muted num" id="yearTotal"></span>
-                <button class="btn btn-outline btn-sm" id="shareCardBtn" type="button" data-i18n="shareBtn">生成分享卡片</button>
+                <button class="stat-share-btn" id="shareCardBtn" type="button" title="生成分享卡片" data-i18n-title="shareBtn" aria-label="生成分享卡片" data-i18n-aria="shareBtn">
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 10.5l6.8-4M8.6 13.5l6.8 4"/></svg>
+                </button>
               </div>
             </div>
             <div class="heat-scroll">
@@ -287,10 +296,42 @@
     <div id="shareModal" class="share-modal" hidden>
       <div class="share-backdrop" data-close></div>
       <div class="share-body" role="dialog" aria-modal="true" aria-label="分享卡片预览">
-        <img id="sharePreview" alt="分享卡片预览" />
-        <div class="share-actions">
-          <a class="btn" id="shareDownload" download="zhishi-share.png" data-i18n="shareSave">保存 PNG</a>
-          <button class="btn btn-outline" type="button" data-close data-i18n="shareClose">关闭</button>
+        <div class="share-layout">
+          <img id="sharePreview" alt="分享卡片预览" />
+          <div class="share-side">
+            <div class="segmented" role="group" aria-label="卡片类型" id="shareRange">
+              <button class="segment" type="button" data-range="day" aria-pressed="false" data-i18n="rangeDay">今日</button>
+              <button class="segment" type="button" data-range="week" aria-pressed="false" data-i18n="rangeWeek">近 7 天</button>
+              <button class="segment" type="button" data-range="year" aria-pressed="true" data-i18n="shareYearSeg">年度</button>
+            </div>
+            <div class="share-profile">
+              <div class="share-profile-head">
+                <label class="share-avatar" title="上传头像" data-i18n-title="shareAvatarAria">
+                  <input type="file" id="shareAvatarInput" accept="image/*" hidden />
+                  <img id="shareAvatarPreview" alt="" hidden />
+                  <span class="share-avatar-fallback" id="shareAvatarPlaceholder">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 4.5l5 5L8.5 20.5H3.5v-5z"/><path d="M12.5 6.5l5 5"/></svg>
+                  </span>
+                  <span class="share-avatar-chip">
+                    <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h3l2-3h8l2 3h3v11H3z"/><circle cx="12" cy="13" r="3.5"/></svg>
+                  </span>
+                </label>
+                <div class="share-name-field">
+                  <label class="share-side-label" for="shareNameInput" data-i18n="shareNickname">昵称</label>
+                  <input class="input" id="shareNameInput" type="text" maxlength="24" placeholder="怎么称呼你？" data-i18n-placeholder="shareNicknamePlaceholder" autocomplete="off" />
+                </div>
+              </div>
+              <div class="share-show-row">
+                <span data-i18n="shareShowProfile">在卡片上显示我的信息</span>
+                <button class="switch" role="switch" id="shareShowSwitch" aria-checked="true" aria-label="在卡片上显示我的信息" data-i18n-aria="shareShowProfile"></button>
+              </div>
+              <button class="btn btn-ghost btn-sm" type="button" id="shareAvatarRemove" data-i18n="shareAvatarRemove" hidden>移除头像</button>
+            </div>
+            <div class="share-actions">
+              <a class="btn" id="shareDownload" download="zhishi-share.png" data-i18n="shareSave">保存 PNG</a>
+              <button class="btn btn-outline" type="button" data-close data-i18n="shareClose">关闭</button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
