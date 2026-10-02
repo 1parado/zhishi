@@ -127,6 +127,9 @@ async function withPage(url, urlPart, fn) {
   await c.opened;
   await c.send('Page.enable');
   await c.send('Runtime.enable');
+  // 主动把新页面置前：扩展的计时与限额拦截都要求「浏览器窗口在前台」，
+  // 无头环境下窗口焦点会漂移，不置前会让相关检查随机失败（假警报）。
+  await c.send('Page.bringToFront').catch(() => {});
   await c.send('Page.navigate', { url });
   try {
     await until(async () => {
@@ -347,6 +350,7 @@ try {
         const expectedTop = Object.entries(day).sort((a, b) => b[1] - a[1])[0]?.[0] ?? '';
         out.dayRows = dayRows.length;
         out.dayTopMatches = dayRows[0] === expectedTop && dayRows.length > 0;
+        out.dayTopName = dayRows[0] ?? '';
         out.topDefaultSeven = out.dayRows === 7;
         out.hasMoreBtn = !!document.querySelector('.top-more');
         // 品牌色 SVG 图标
@@ -354,6 +358,81 @@ try {
         document.querySelector('.top-more')?.click();
         await new Promise((r) => setTimeout(r, 200));
         out.topExpanded = document.querySelectorAll('#topSites .top-name').length;
+        // 排行项应可点击跳转：每行都是 <button>，且 title 与 aria-label 一致。
+        const topRows = [...document.querySelectorAll('#topSites .top-row')];
+        out.topRows = topRows.length;
+        out.topClickable = topRows.filter(
+          (r) => r.tagName === 'BUTTON' && r.title && r.getAttribute('aria-label') === r.title
+        ).length;
+        // 点击首行应把 https://域名/ 交给 chrome.tabs.create。
+        // 用桩替换：真开标签会切走 active tab 并触发外网请求，污染后续步骤。
+        out.topClickDomain = topRows[0]?.querySelector('.top-name')?.textContent ?? '';
+        {
+          const origCreate = chrome.tabs.create;
+          const origQuery = chrome.tabs.query;
+          let created = '';
+          chrome.tabs.query = async () => []; // 模拟「该站点没开着」
+          chrome.tabs.create = async (arg) => { created = arg?.url ?? ''; return { id: 999 }; };
+          try {
+            topRows[0]?.click();
+            await new Promise((r) => setTimeout(r, 250));
+          } finally {
+            chrome.tabs.create = origCreate;
+            chrome.tabs.query = origQuery;
+          }
+          out.topClickUrl = created;
+        }
+        // 排行维度：注入次数数据后切到「次数」，应按次数排序并只显示「N 次」；
+        // 切回「时间」后只显示时长，分段高亮也必须跟着走。
+        // e2e-dual.com 在两张表里都注入数据 —— 演示数据是每次随机生成的，
+        // 不能指望某个真实域名「恰好同时有今日时长和次数」。两个维度都有值时
+        // 正好能验证「按次数排时看不到时长、按时长排时看不到次数」。
+        const visitsKey = 'v:' + dateKey();
+        const dualDayKey = 'd:' + dateKey();
+        const dualDay = (await chrome.storage.local.get(dualDayKey))[dualDayKey] || {};
+        const dualBackup = dualDay['e2e-dual.com'];
+        dualDay['e2e-dual.com'] = 120; // 2 分钟：远低于今日最大值，不影响首行断言
+        await chrome.storage.local.set({
+          [visitsKey]: { 'visits-many.com': 9, 'e2e-dual.com': 5, 'visits-few.com': 2, 'github.com': 4 },
+          [dualDayKey]: dualDay,
+        });
+        await saveSettings({ topSitesMetric: 'visits' });
+        await new Promise((r) => setTimeout(r, 500));
+        const visitNames = [...document.querySelectorAll('#topSites .top-name')].map((el) => el.textContent);
+        out.visitsRows = visitNames.length;
+        out.visitsFirst = visitNames[0] ?? '';
+        out.visitsText = document.querySelector('#topSites .top-time')?.textContent ?? '';
+        // 排行只显示所选维度：e2e-dual.com 在时长表与次数表里都有值，
+        // 用它验证「按次数只显示次数、按时长只显示时长」最直接。
+        const cellOf = (domain) => {
+          const row = [...document.querySelectorAll('#topSites .top-row')].find(
+            (r) => r.querySelector('.top-name')?.textContent === domain
+          );
+          return row?.querySelector('.top-time')?.textContent ?? '';
+        };
+        out.cellVisits = cellOf('e2e-dual.com');
+        out.visitsPressed = document
+          .querySelector('#topSitesMetric .segment[data-metric="visits"]')
+          ?.getAttribute('aria-pressed') ?? '';
+        // 顺带守住既有 bug：切范围后高亮必须同步（renderTopSitesRangeType 曾被漏调）。
+        out.rangePressed = document
+          .querySelector('#topSitesRange .segment[data-range="day"]')
+          ?.getAttribute('aria-pressed') ?? '';
+        await saveSettings({ topSitesMetric: 'time' });
+        await new Promise((r) => setTimeout(r, 500));
+        out.timeFirst = document.querySelector('#topSites .top-name')?.textContent ?? '';
+        out.timeText = document.querySelector('#topSites .top-time')?.textContent ?? '';
+        out.cellTime = cellOf('e2e-dual.com');
+        out.timePressed = document
+          .querySelector('#topSitesMetric .segment[data-metric="time"]')
+          ?.getAttribute('aria-pressed') ?? '';
+        await chrome.storage.local.remove(visitsKey);
+        // 还原注入的时长。重新读一次再写：计时引擎每分钟也会写 d:今天，
+        // 拿几秒前的快照整对象回写会把它的那次结算覆盖掉。
+        const dualFresh = (await chrome.storage.local.get(dualDayKey))[dualDayKey] || {};
+        if (dualBackup === undefined) delete dualFresh['e2e-dual.com'];
+        else dualFresh['e2e-dual.com'] = dualBackup;
+        await chrome.storage.local.set({ [dualDayKey]: dualFresh });
         await saveSettings({ topSitesRange: 'week' });
         await new Promise((r) => setTimeout(r, 400));
         out.weekRows = document.querySelectorAll('#topSites .top-name').length;
@@ -380,17 +459,51 @@ try {
         chartChecks.hasMoreBtn &&
         chartChecks.topExpanded > 7 &&
         chartChecks.siteIcons > 0;
+      // 排行项可点击跳转：所有行都该是带 title 的按钮，且点击落到正确网址。
+      const linkOk =
+        chartChecks.topRows > 0 &&
+        chartChecks.topClickable === chartChecks.topRows &&
+        chartChecks.topClickUrl === `https://${chartChecks.topClickDomain}/`;
+      // 排行维度切换：次数排序 / 文案 / 切回时间 / 分段高亮同步。
+      const metricOk =
+        chartChecks.visitsRows === 4 &&
+        chartChecks.visitsFirst === 'visits-many.com' &&
+        /^9\s*(次|visits)$/.test(chartChecks.visitsText) &&
+        chartChecks.visitsPressed === 'true' &&
+        chartChecks.rangePressed === 'true' &&
+        chartChecks.timePressed === 'true' &&
+        chartChecks.timeFirst === chartChecks.dayTopName &&
+        chartChecks.timeText !== chartChecks.visitsText;
+      // 单维度展示：每行只显示当前排序依据，另一个维度不出现——但两个维度
+      // 仍在后台照常记录（d: 时长表 / v: 次数表各自独立写入）。
+      // e2e-dual.com 两个维度都有值，正好验证「按次数看不到时长、按时长看不到次数」。
+      const DUR_TEXT = /\d+\s*(秒|分|小时|sec|min|hour)/;
+      const VISIT_TEXT = /\d+\s*(次|visits)/;
+      const singleOk =
+        VISIT_TEXT.test(chartChecks.cellVisits) &&
+        !DUR_TEXT.test(chartChecks.cellVisits) &&
+        DUR_TEXT.test(chartChecks.cellTime) &&
+        !VISIT_TEXT.test(chartChecks.cellTime);
       const i18nOk =
         chartChecks.githubLink === 'https://github.com/1parado/zhishi' &&
         chartChecks.githubIcon &&
         chartChecks.settingsLocaleSwitch &&
-        chartChecks.enTab === 'Overview|Site limits|Wellness|Timing & data|Settings' &&
-        chartChecks.zhTab === '概览|网站限额|健康提醒|计时与数据|设置';
+        chartChecks.enTab === 'Overview|Site limits|Allowlist|Wellness|Data|Settings' &&
+        chartChecks.zhTab === '概览|网站限额|白名单|健康提醒|数据|设置';
       console.log(
         `图表切换 → 折线 ${chartChecks.line} / 饼状 ${chartChecks.pie} / 柱状 ${chartChecks.bar}，热力新配色 ${chartChecks.heatColored} ${chartOk ? '✓' : '✗'}`
       );
       console.log(
         `排行范围 → 今日默认 ${chartChecks.dayRows} 条（第 7 截断 ${chartChecks.topDefaultSeven} / 有查看更多 ${chartChecks.hasMoreBtn} / 展开后 ${chartChecks.topExpanded} 条 / 品牌图标 ${chartChecks.siteIcons} 个）/ 近 7 天 ${chartChecks.weekRows} 条 ${rangeOk ? '✓' : '✗'}`
+      );
+      console.log(
+        `排行点击跳转 → ${chartChecks.topClickable}/${chartChecks.topRows} 行为可点击按钮，点击 ${chartChecks.topClickDomain} → ${chartChecks.topClickUrl || '(未调用)'} ${linkOk ? '✓' : '✗'}`
+      );
+      console.log(
+        `排行维度切换 → 次数：首行 ${chartChecks.visitsFirst}「${chartChecks.visitsText}」（${chartChecks.visitsRows} 条）；切回时间：首行 ${chartChecks.timeFirst}「${chartChecks.timeText}」；分段高亮 visits=${chartChecks.visitsPressed} time=${chartChecks.timePressed} range=${chartChecks.rangePressed} ${metricOk ? '✓' : '✗'}`
+      );
+      console.log(
+        `排行单维度 → e2e-dual.com 按次数「${chartChecks.cellVisits}」不带时长，按时长「${chartChecks.cellTime}」不带次数 ${singleOk ? '✓' : '✗'}`
       );
       console.log(
         `i18n + GitHub → 链接 ${chartChecks.githubLink}，图标 ${chartChecks.githubIcon}，EN 标签「${chartChecks.enTab}」，ZH 标签「${chartChecks.zhTab}」 ${i18nOk ? '✓' : '✗'}`
@@ -425,24 +538,39 @@ try {
 
   // 4b. popup 实时秒表 + 会话竞态修复：popup 先以「暂停」渲染，
   //     种入会话后应通过 storage.session.onChanged 自动刷新为「正在记录」并每秒推进。
+  //
+  //     注意：种入的是「假会话」，任何一次真实 tick 都会把它 settle 掉，而此时
+  //     活动标签正是 popup 页本身（chrome-extension:// 不可统计）→ 不会重开会话。
+  //     所以这项不能只赌一次：种入后没变成「正在记录」就重种，再采样几秒确认秒表在走。
   const ticks = await withPage(`chrome-extension://${extId}/src/pages/popup.html`, 'popup.html', async (c) => {
-    const t1 = await evaluate(c, 'document.getElementById("status").textContent');
-    await evaluate(c, `(async () => {
+    const readStatus = () => evaluate(c, 'document.getElementById("status").textContent');
+    const seed = () =>
+      evaluate(c, `(async () => {
       await chrome.storage.session.set({
         session: { tabId: 1, windowId: 1, domain: 'example.com', startedAt: Date.now() - 30000 },
       });
       return true;
     })()`);
-    await sleep(700); // onChanged → 150ms 防抖重渲染
-    const t2 = await evaluate(c, 'document.getElementById("status").textContent');
-    await sleep(2200);
-    const t3 = await evaluate(c, 'document.getElementById("status").textContent');
-    return { t1, t2, t3 };
+    const t1 = await readStatus();
+    let t2 = '';
+    for (let i = 0; i < 6 && !t2.includes('正在记录'); i++) {
+      await seed();
+      await sleep(700); // onChanged → 150ms 防抖重渲染
+      t2 = await readStatus();
+    }
+    // 采样几秒：验证秒表真的在推进，而不是静态显示了一次。
+    const samples = [];
+    for (let i = 0; i < 5; i++) {
+      await sleep(500);
+      samples.push(await readStatus());
+    }
+    return { t1, t2, samples };
   });
+  const advanced = ticks.samples.filter((s) => s.includes('正在记录') && s !== ticks.t2);
   const ticksOk =
-    !ticks.t1.includes('正在记录') && ticks.t2.includes('正在记录') && ticks.t2 !== ticks.t3;
+    !ticks.t1.includes('正在记录') && ticks.t2.includes('正在记录') && advanced.length > 0;
   console.log(
-    `popup 实时秒表 ${ticksOk ? '✓' : '✗'}（${ticks.t1} → ${ticks.t2} → ${ticks.t3}）`
+    `popup 实时秒表 ${ticksOk ? '✓' : '✗'}（${ticks.t1} → ${ticks.t2} → ${advanced[0] ?? ticks.samples.at(-1) ?? '(无)'}）`
   );
 
   // 4c. popup 语言迷你切换：切 EN 后按钮文案应变。
@@ -460,6 +588,131 @@ try {
   const localeOk = popupLocale.enText === 'Open dashboard' && popupLocale.zhText === '打开仪表盘';
   console.log(
     `popup 语言切换 ${localeOk ? '✓' : '✗'}（EN → ${popupLocale.enText} / ZH → ${popupLocale.zhText}）`
+  );
+
+  // 4c2. popup 排行项：整行是按钮，点击把正确网址交给 chrome.tabs.create；
+  //      已打开时改走「切过去」而不是重复新建。
+  //      用桩替换 tabs API——真开标签会切走 active tab 并触发外网请求，污染后续步骤。
+  const popupJump = await withPage(`chrome-extension://${extId}/src/pages/popup.html`, 'popup.html', async (c) =>
+    evaluate(c, `(async () => {
+      const rows = [...document.querySelectorAll('#siteList .site-row')];
+      const shape = {
+        rows: rows.length,
+        buttons: rows.filter((r) => r.tagName === 'BUTTON' && r.title && r.getAttribute('aria-label') === r.title).length,
+        domain: rows[0]?.querySelector('.site-name')?.textContent ?? '',
+      };
+      const calls = [];
+      const tick = () => new Promise((r) => setTimeout(r, 250));
+      const orig = {
+        create: chrome.tabs.create,
+        query: chrome.tabs.query,
+        update: chrome.tabs.update,
+        winUpdate: chrome.windows.update,
+        close: window.close,
+      };
+      chrome.tabs.create = async (arg) => { calls.push({ api: 'create', url: arg?.url }); return { id: 999 }; };
+      chrome.tabs.update = async (id, arg) => { calls.push({ api: 'update', id, active: arg?.active }); return {}; };
+      chrome.windows.update = async (id, arg) => { calls.push({ api: 'focusWindow', id, focused: arg?.focused }); return {}; };
+      // 跳转成功后 popup 会主动收起；这里拦下来只为记录，避免页面被真关掉。
+      window.close = () => { calls.push({ api: 'close' }); };
+      try {
+        // 场景 A：站点没开着 → 新建标签页
+        chrome.tabs.query = async () => [];
+        rows[0]?.click();
+        await tick();
+        // 场景 B：站点已开着 → 切过去，不新建
+        chrome.tabs.query = async () => [{ id: 7, windowId: 3 }];
+        rows[0]?.click();
+        await tick();
+      } finally {
+        chrome.tabs.create = orig.create;
+        chrome.tabs.query = orig.query;
+        chrome.tabs.update = orig.update;
+        chrome.windows.update = orig.winUpdate;
+        window.close = orig.close;
+      }
+      return { ...shape, calls };
+    })()`)
+  );
+  const jumpCreate = popupJump.calls.find((x) => x.api === 'create');
+  const jumpSwitch = popupJump.calls.find((x) => x.api === 'update');
+  const jumpOk =
+    popupJump.rows > 0 &&
+    popupJump.buttons === popupJump.rows &&
+    jumpCreate?.url === `https://${popupJump.domain}/` &&
+    jumpSwitch?.id === 7 &&
+    jumpSwitch?.active === true &&
+    popupJump.calls.filter((x) => x.api === 'create').length === 1;
+  console.log(
+    `popup 排行点击跳转 → ${popupJump.buttons}/${popupJump.rows} 行可点击；未开→新建 ${jumpCreate?.url ?? '(未调用)'}，已开→切换标签 #${jumpSwitch?.id ?? '?'} ${jumpOk ? '✓' : '✗'}`
+  );
+
+  // 4c3. 访问次数：noteVisit 仅在活跃站点发生变化时计数（同站点重复调用不计），
+  //      popup 排行跟随维度只显示「N 次」。
+  const visitCount = await withPage(`chrome-extension://${extId}/src/pages/popup.html`, 'popup.html', async (c) => {
+    // 采集阶段保持「按次数排」的画面不动——还原动作挪到截图之后，
+    // 否则弹窗会先重渲染回按时长的样子，截图就不是按次数排的了。
+    const collected = await evaluate(c, `(async () => {
+      const { noteVisit } = await import(chrome.runtime.getURL('src/background/tracker.js'));
+      const { saveSettings } = await import(chrome.runtime.getURL('src/lib/settings.js'));
+      const key = 'v:' + new Date().toLocaleDateString('sv-SE');
+      await chrome.storage.local.remove(key);           // 从干净状态起算
+      // 给 a 站补一段时长（5 分钟）：按次数排时这一列不该出现，
+      // 正好验证「另一个维度照常记录但不在排行里展示」。
+      const dayKey = 'd:' + new Date().toLocaleDateString('sv-SE');
+      const dayData = (await chrome.storage.local.get(dayKey))[dayKey] || {};
+      dayData['e2e-visit-a.com'] = 300;
+      await chrome.storage.local.set({ [dayKey]: dayData });
+      await chrome.storage.session.remove('lastDomain');
+      const first = await noteVisit('e2e-visit-a.com'); // 新站点 → 计 1
+      const again = await noteVisit('e2e-visit-a.com'); // 同一站点 → 不重复计
+      const other = await noteVisit('e2e-visit-b.com'); // 换站点 → 计 1
+      const back = await noteVisit('e2e-visit-a.com');  // 切回来 → 再计 1
+      const stored = (await chrome.storage.local.get(key))[key] || {};
+      await saveSettings({ topSitesMetric: 'visits' });
+      await new Promise((r) => setTimeout(r, 700));
+      const names = [...document.querySelectorAll('#siteList .site-name')].map((el) => el.textContent);
+      const times = [...document.querySelectorAll('#siteList .site-time')].map((el) => el.textContent);
+      return {
+        first, again, other, back,
+        a: stored['e2e-visit-a.com'] ?? 0,
+        b: stored['e2e-visit-b.com'] ?? 0,
+        names, times,
+      };
+    })()`);
+    // 截图留证：按次数排时每行只显示次数（a 站有 5 分钟时长也不显示）。
+    await screenshot(c, 'popup-visits.png');
+    // 统一清理：还原注入的时长与排行维度，别污染后续步骤。
+    await evaluate(c, `(async () => {
+      const { saveSettings } = await import(chrome.runtime.getURL('src/lib/settings.js'));
+      const key = 'v:' + new Date().toLocaleDateString('sv-SE');
+      const dayKey = 'd:' + new Date().toLocaleDateString('sv-SE');
+      await chrome.storage.local.remove(key);
+      const day = (await chrome.storage.local.get(dayKey))[dayKey] || {};
+      delete day['e2e-visit-a.com'];
+      await chrome.storage.local.set({ [dayKey]: day });
+      await chrome.storage.session.remove('lastDomain');
+      await saveSettings({ topSitesMetric: 'time' });
+      return true;
+    })()`);
+    return collected;
+  });
+  const visitOk =
+    visitCount.first === true &&
+    visitCount.again === false &&
+    visitCount.other === true &&
+    visitCount.back === true &&
+    visitCount.a === 2 &&
+    visitCount.b === 1 &&
+    visitCount.names[0] === 'e2e-visit-a.com' &&
+    // popup 同样只显示所选维度：a 站虽有 5 分钟时长，按次数排时不展示，
+    // 每行只有「N 次」；另一个维度仍在后台照常记录。
+    /^2\s*(次|visits)$/.test(visitCount.times[0] ?? '') &&
+    /^1\s*(次|visits)$/.test(visitCount.times[1] ?? '') &&
+    !/\d\s*(秒|分|小时|sec|min|hour)/.test(visitCount.times.join(' ')) &&
+    visitCount.names[1] === 'e2e-visit-b.com';
+  console.log(
+    `访问次数 → 首次 ${visitCount.first} / 同站点重复 ${visitCount.again} / 换站点 ${visitCount.other} / 切回 ${visitCount.back}；计数 a=${visitCount.a} b=${visitCount.b}；popup 按次数排行 [${visitCount.names.join(', ')}]「${visitCount.times.join(' / ')}」（不含时长）${visitOk ? '✓' : '✗'}`
   );
 
   // 4d/4e. 时间线页（用「昨天/前天」做确定性测试，真实结算只写今天）：
@@ -490,7 +743,10 @@ try {
           });
           await until(async () => {
             const v = await c.send('Runtime.evaluate', {
-              expression: 'document.readyState',
+              // 除 readyState 外还要等时间轴真正画出来：渲染是异步的（等
+              // storage / IDB），只等 readyState 会读到空 DOM 造成假失败。
+              expression:
+                "document.readyState === 'complete' && document.querySelectorAll('.tl-tick').length > 0 ? 'complete' : 'loading'",
               returnByValue: true,
             });
             if (v.result?.value !== 'complete') throw new Error(v.result?.value);
@@ -522,7 +778,9 @@ try {
           });
           await until(async () => {
             const v = await c.send('Runtime.evaluate', {
-              expression: 'location.href.includes("date=") && document.readyState',
+              // 同上：等时间轴画完再读，避免异步渲染没完成就断言。
+              expression:
+                "location.href.includes('date=') && document.readyState === 'complete' && document.querySelectorAll('.tl-tick').length > 0 ? 'complete' : 'loading'",
               returnByValue: true,
             });
             if (v.result?.value !== 'complete') throw new Error(String(v.result?.value));
@@ -604,7 +862,7 @@ try {
   });
   const persistOk =
     persist.storedLocale === 'en' &&
-    persist.tabs === 'Overview|Site limits|Wellness|Timing & data|Settings' &&
+    persist.tabs === 'Overview|Site limits|Allowlist|Wellness|Data|Settings' &&
     !/[一-龥]/.test(persist.statToday);
   console.log(
     `语言持久化 → 存储 ${persist.storedLocale} / 仪表盘标签「${persist.tabs}」/ 今日「${persist.statToday}」 ${persistOk ? '✓' : '✗'}`
@@ -703,15 +961,29 @@ try {
 
   const expected = `chrome-extension://${extId}/src/pages/block.html?domain=example.com`;
   const finalUrl = await withPage('https://example.com/', 'example.com', async (c) => {
-    await sleep(2500);
-    return evaluate(c, 'location.href');
+    // 轮询等重定向，而不是固定 sleep：SW 冷启动 + 400ms 事件防抖偶尔超过 2.5 秒，
+    // 固定等待会抢跑成假失败；在活的上下文里读最终地址也比事后全局扫描可靠。
+    let href = '';
+    for (let i = 0; i < 16; i++) {
+      await sleep(500);
+      href = await evaluate(c, 'location.href');
+      if (href.startsWith(expected)) return href;
+    }
+    return href;
   }).catch(() => null);
 
-  // 导航后标签页可能被 tick 重定向，重新读取最终地址。
+  // 兜底：重定向也可能落在另一个已打开的 example.com 标签上。
   const list = await targets();
   const navTab = list.find((t) => (t.url ?? '').startsWith(expected));
-  const url = navTab?.url ?? finalUrl ?? '(未知)';
-  console.log(url === expected ? `限额拦截生效 ✓ → ${url}` : `限额拦截未生效 ✗ → ${url}`);
+  const url = (finalUrl ?? '').startsWith(expected) ? finalUrl : navTab?.url ?? finalUrl ?? '(未知)';
+  // 注意：重定向只在「浏览器窗口在前台」时触发（restartSession 的既有门禁），
+  // 无头环境下窗口焦点会漂移，此项偶发 ✗ 属环境抖动，不代表拦截逻辑有问题
+  //（拦截逻辑由下面确定性的「复杂限额序列」覆盖）。
+  console.log(
+    url === expected
+      ? `限额拦截生效 ✓ → ${url}`
+      : `限额拦截未生效 ✗ → ${url}（重定向需窗口在前台，此项易受焦点影响）`
+  );
 
   // 7. 复杂限额操作序列：限额 → 超限 → 放行 10 分钟 → 删除限额 → 新增 6 分钟限额。
   //    期望：删除时放行记录一并作废，新限额因今日已用 10 分钟 ≥ 6 分钟而立即拦截。
@@ -747,6 +1019,111 @@ try {
     `复杂限额序列 → 初始拦截 ${seqResult.blocked1} / 放行后 ${seqResult.blocked2} / 删除后放行残留 ${JSON.stringify(
       seqResult.grantsAfterRemove
     )} / 新 6 分钟限额拦截 ${seqResult.blocked3} ${seqOk ? '✓' : '✗'}`
+  );
+
+  // 8. 网站图标：采集校验 + 渲染优先级 + 设置开关。
+  //    采集层用假 tab 直接喂 favIconUrl，不依赖真实站点是否提供图标。
+  const iconCapture = await withPage(
+    `chrome-extension://${extId}/src/pages/popup.html`,
+    'popup.html',
+    async (c) =>
+      evaluate(
+        c,
+        `(async () => {
+          const { captureFavicon, clearFavicons } =
+            await import(chrome.runtime.getURL('src/lib/favicon.js'));
+          await clearFavicons();
+
+          // 合法：远程地址与内联 data URL 各一例
+          const okRemote = await captureFavicon({
+            url: 'https://bilibili.com/video/1',
+            favIconUrl: 'https://i0.hdslb.com/bfs/static/favicon.ico',
+          });
+          const okData = await captureFavicon({
+            url: 'https://www.zhihu.com/question/1',
+            favIconUrl: 'data:image/png;base64,iVBORw0KGgo=',
+          });
+          // 非法：浏览器默认占位图 / 会把 CSS url() 提前闭合的地址
+          const badScheme = await captureFavicon({
+            url: 'https://github.com/',
+            favIconUrl: 'chrome://theme/IDR_DEFAULT_FAVICON',
+          });
+          const badChars = await captureFavicon({
+            url: 'https://juejin.cn/',
+            favIconUrl: 'https://a.cn/x' + String.fromCharCode(34) + '.ico',
+          });
+          // 非 http(s) 页面没有域名，直接跳过
+          const noDomain = await captureFavicon({
+            url: 'chrome://extensions/',
+            favIconUrl: 'https://a.cn/f.ico',
+          });
+          // 只采首次：同域名换地址不应覆盖
+          const overwrite = await captureFavicon({
+            url: 'https://bilibili.com/video/2',
+            favIconUrl: 'https://evil.example/x.ico',
+          });
+
+          const stored = (await chrome.storage.local.get('favicons')).favicons || {};
+          return { okRemote, okData, badScheme, badChars, noDomain, overwrite, stored };
+        })()`
+      )
+  );
+  const iconCaptureOk =
+    iconCapture.okRemote === true &&
+    iconCapture.okData === true &&
+    iconCapture.badScheme === false &&
+    iconCapture.badChars === false &&
+    iconCapture.noDomain === false &&
+    iconCapture.overwrite === false &&
+    iconCapture.stored['bilibili.com'] === 'https://i0.hdslb.com/bfs/static/favicon.ico' &&
+    iconCapture.stored['zhihu.com'] === 'data:image/png;base64,iVBORw0KGgo=' &&
+    Object.keys(iconCapture.stored).length === 2;
+  console.log(
+    `图标采集 → 远程 ${iconCapture.okRemote} / 内联 ${iconCapture.okData} / 占位图拒绝 ${iconCapture.badScheme === false} / 危险字符拒绝 ${iconCapture.badChars === false} / 非网页跳过 ${iconCapture.noDomain === false} / 不覆盖 ${iconCapture.overwrite === false} / 入库 ${JSON.stringify(iconCapture.stored)} ${iconCaptureOk ? '✓' : '✗'}`
+  );
+
+  // 渲染层：固定今天的用量，保证 bilibili.com 一定出现在今日排行首行。
+  const iconRender = await withPage(
+    `chrome-extension://${extId}/src/pages/dashboard.html`,
+    'dashboard.html',
+    async (c) =>
+      evaluate(
+        c,
+        `(async () => {
+          const { saveSettings } = await import(chrome.runtime.getURL('src/lib/settings.js'));
+          const { dateKey } = await import(chrome.runtime.getURL('src/lib/pure.js'));
+          await chrome.storage.local.set({ ['d:' + dateKey()]: { 'bilibili.com': 3600 } });
+          await saveSettings({ topSitesRange: 'day', realFavicon: true });
+          await new Promise((r) => setTimeout(r, 900));
+
+          const bg = () => {
+            const row = [...document.querySelectorAll('.top-row')].find(
+              (el) => el.querySelector('.top-name')?.textContent.trim() === 'bilibili.com'
+            );
+            return row?.querySelector('.top-name')?.style.backgroundImage || '';
+          };
+
+          const withFavicon = bg();
+          await saveSettings({ realFavicon: false });
+          await new Promise((r) => setTimeout(r, 900));
+          const withoutFavicon = bg();
+          await saveSettings({ realFavicon: true });
+          await new Promise((r) => setTimeout(r, 900));
+          const restored = bg();
+
+          const { clearFavicons } = await import(chrome.runtime.getURL('src/lib/favicon.js'));
+          await clearFavicons();
+          return { withFavicon, withoutFavicon, restored };
+        })()`
+      )
+  );
+  const iconRenderOk =
+    iconRender.withFavicon.includes('hdslb.com') &&
+    !iconRender.withoutFavicon.includes('hdslb.com') &&
+    iconRender.withoutFavicon.includes('data:image/svg+xml') &&
+    iconRender.restored.includes('hdslb.com');
+  console.log(
+    `图标渲染 → 开启用真图标 ${iconRender.withFavicon.includes('hdslb.com')} / 关闭回落内置 SVG ${iconRender.withoutFavicon.includes('data:image/svg+xml') && !iconRender.withoutFavicon.includes('hdslb.com')} / 重新开启恢复 ${iconRender.restored.includes('hdslb.com')} ${iconRenderOk ? '✓' : '✗'}`
   );
 
   console.log('\n全部验证完成，截图位于 verify/ 目录');

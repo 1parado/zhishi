@@ -12,8 +12,12 @@ import {
   inTimeWindow,
   isFocusBlocked,
   isValidTime,
+  rankEntries,
   shiftDateKey,
   shortDate,
+  siteUrl,
+  sortRank,
+  sumByDomain,
   sumSeconds,
   toCSV,
   streakDays,
@@ -41,6 +45,75 @@ test('classifyUrl 只统计 http/https 并去掉 www.', () => {
   assert.equal(classifyUrl(''), null);
   assert.equal(classifyUrl(undefined), null);
   assert.equal(classifyUrl('https://'), null);
+});
+
+test('siteUrl 把聚合域名还原成可打开的网址', () => {
+  assert.equal(siteUrl('bilibili.com'), 'https://bilibili.com/');
+  assert.equal(siteUrl('news.ycombinator.com'), 'https://news.ycombinator.com/');
+  assert.equal(siteUrl('BILIBILI.COM'), 'https://bilibili.com/');
+  assert.equal(siteUrl('xn--fiqs8s.cn'), 'https://xn--fiqs8s.cn/');
+});
+
+test('siteUrl 拒绝不可拼接的值（防拼进 URL 的注入面）', () => {
+  // 单段主机名（localhost / 内网机器名）不跳转
+  assert.equal(siteUrl('localhost'), null);
+  // 空串与类型异常
+  assert.equal(siteUrl(''), null);
+  assert.equal(siteUrl(undefined), null);
+  assert.equal(siteUrl(null), null);
+  assert.equal(siteUrl(123), null);
+  // 路径、端口、协议、用户信息、空白等一律拒绝
+  assert.equal(siteUrl('a.com/path'), null);
+  assert.equal(siteUrl('a.com:8080'), null);
+  assert.equal(siteUrl('https://a.com'), null);
+  assert.equal(siteUrl('a.com?x=1'), null);
+  assert.equal(siteUrl('user@a.com'), null);
+  assert.equal(siteUrl('a .com'), null);
+  assert.equal(siteUrl('a.com\n/evil'), null);
+  // 连字符不能在段落首尾
+  assert.equal(siteUrl('-a.com'), null);
+  assert.equal(siteUrl('a-.com'), null);
+});
+
+test('rankEntries 按范围聚合后降序，并列按域名稳定排序', () => {
+  const days = {
+    '2026-05-10': { 'b.com': 30, 'a.com': 10 },
+    '2026-05-11': { 'b.com': 5, 'c.com': 10 },
+  };
+  // 今日：只取当天，降序
+  assert.deepEqual(rankEntries(days, '2026-05-11', 'day'), [
+    { domain: 'c.com', value: 10 },
+    { domain: 'b.com', value: 5 },
+  ]);
+  // 近 7 天：跨天求和；a.com 与 c.com 并列 → 按域名升序
+  assert.deepEqual(rankEntries(days, '2026-05-11', 'week'), [
+    { domain: 'b.com', value: 35 },
+    { domain: 'a.com', value: 10 },
+    { domain: 'c.com', value: 10 },
+  ]);
+});
+
+test('rankEntries 只统计窗口内的日子', () => {
+  const days = {
+    '2026-05-01': { 'old.com': 999 }, // 7 天窗口外（窗口为 05-05 ~ 05-11）
+    '2026-05-10': { 'new.com': 1 },
+  };
+  assert.deepEqual(rankEntries(days, '2026-05-10', 'week'), [{ domain: 'new.com', value: 1 }]);
+  assert.deepEqual(rankEntries(days, '2026-05-11', 'day'), []);
+});
+
+test('sortRank 过滤零值与非数值，并列按域名升序', () => {
+  assert.deepEqual(sortRank({ b: 2, a: 2, z: 0, n: -1, x: 'oops', y: NaN }), [
+    { domain: 'a', value: 2 },
+    { domain: 'b', value: 2 },
+  ]);
+  assert.deepEqual(sortRank(undefined), []);
+});
+
+test('sumByDomain 忽略非数值，缺失日期视为空', () => {
+  assert.deepEqual(sumByDomain({ '2026-05-11': { a: 1, b: 'x' } }, '2026-05-11', 'day'), { a: 1 });
+  assert.deepEqual(sumByDomain({}, '2026-05-11', 'day'), {});
+  assert.deepEqual(sumByDomain(undefined, '2026-05-11', 'week'), {});
 });
 
 test('capChunk 限制单次结算上限', () => {

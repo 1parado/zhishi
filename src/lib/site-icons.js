@@ -1,7 +1,11 @@
 /**
- * 网站图标：常用站点显示真实品牌 logo SVG，其余按域名哈希取色显示字母图标。
- * 全部内联为 data URI，零网络、零异步资源请求、带内存缓存——
+ * 网站图标：三级优先，全部内联或引用本地已缓存资源，同步返回、无异步等待——
  * 打开页面时图标与 DOM 同帧绘制，无加载闪烁。
+ *
+ *   1. 网站自己的真实 favicon（浏览器访问时解析好的地址，由 favicon.js 采集，
+ *      页面启动时通过 setFavicons 注入）；
+ *   2. 内置品牌 logo SVG（site-svgs.js，Simple Icons 官方矢量 + 权威品牌色）；
+ *   3. 域名哈希取色 + 首字母的圆角方块。
  *
  * 真实 SVG 来源：Simple Icons（官方品牌矢量 + 权威品牌色），由
  * scripts/fetch-site-icons.mjs 抓取并清洗压缩后内联到 ./site-svgs.js。
@@ -84,18 +88,36 @@ function hashDomain(domain) {
 // 内存缓存：同一域名只生成一次 SVG data URL。
 const urlCache = new Map();
 
-/**
- * 返回内联 SVG data URL 字符串，直接用作 CSS background-image。
- * 优先返回真实品牌 logo（site-svgs.js 命中），否则回退为
- * 圆角方块（品牌色）+ 居中白色首字母。
- */
-export function siteIconUrl(domain) {
-  if (urlCache.has(domain)) return urlCache.get(domain);
-  if (SITE_SVG_URLS[domain]) {
-    urlCache.set(domain, SITE_SVG_URLS[domain]);
-    return SITE_SVG_URLS[domain];
-  }
+// 真实 favicon 层：域名的图标地址快照，由页面启动时注入（见 setFavicons）。
+// 未注入或未命中时，行为与升级前完全一致。
+let favicons = null;
+let faviconsEnabled = false;
 
+/**
+ * 注入真实 favicon 表并设置是否启用。页面启动时调用一次；
+ * 数据变化后再次调用即可整体换新（内部缓存会一并失效）。
+ *
+ * 关闭开关不移除采集：地址仍由后台持续缓存，只是渲染时不用，
+ * 所以重新打开后立刻生效，无需重访站点。
+ *
+ * @param {Record<string, string>} [map] 域名 → 图标 URL
+ * @param {boolean} [enabled] 是否在渲染时使用真实 favicon
+ */
+export function setFavicons(map, enabled = true) {
+  favicons = map && typeof map === 'object' ? map : null;
+  faviconsEnabled = enabled !== false && !!favicons;
+  urlCache.clear();
+}
+
+/** 真实 favicon 的 CSS 值；未启用或未命中返回 null。 */
+function realFaviconUrl(domain) {
+  if (!faviconsEnabled) return null;
+  const raw = favicons[domain];
+  return raw ? `url("${raw}")` : null;
+}
+
+/** 回退图标：品牌色圆角方块 + 居中白色首字母。 */
+function letterIconUrl(domain) {
   const color = brandColor(domain);
   const letter = domain.charAt(0).toUpperCase();
   // 单引号属性避免转义；# 编码为 %23（data URL 要求）
@@ -105,7 +127,18 @@ export function siteIconUrl(domain) {
     `<rect width='24' height='24' rx='6' fill='${safeColor}'/>` +
     `<text x='12' y='17' text-anchor='middle' font-family='system-ui,sans-serif' font-size='14' font-weight='600' fill='white'>${letter}</text>` +
     `</svg>`;
-  const url = `url("data:image/svg+xml,${svg}")`;
+  return `url("data:image/svg+xml,${svg}")`;
+}
+
+/**
+ * 返回可直接用作 CSS background-image 的字符串，优先级见文件头注释。
+ */
+export function siteIconUrl(domain) {
+  if (urlCache.has(domain)) return urlCache.get(domain);
+
+  // 图标地址由 favicon.js 的 sanitizeFaviconUrl 预校验过：不含引号、反斜杠、
+  // 圆括号与空白，因此这里直接拼进 url("…") 是安全的。
+  const url = realFaviconUrl(domain) ?? SITE_SVG_URLS[domain] ?? letterIconUrl(domain);
   urlCache.set(domain, url);
   return url;
 }

@@ -1,9 +1,11 @@
-import { classifyUrl, dateKey, goalVariant, sumSeconds } from '../lib/pure.js';
+import { classifyUrl, dateKey, goalVariant, siteUrl, sortRank, sumSeconds } from '../lib/pure.js';
+import { openSiteTab } from '../lib/site-link.js';
 import { getSettings, saveSettings } from '../lib/settings.js';
 import { applyI18n, fmtDuration, fmtDurationCompact, initI18n, refreshLocale, t } from '../lib/i18n.js';
 import { applyTheme, initTheme } from '../lib/theme.js';
-import { siteIconUrl } from '../lib/site-icons.js';
-import { getDay } from '../background/store.js';
+import { siteIconUrl, setFavicons } from '../lib/site-icons.js';
+import { loadFaviconMap } from '../lib/favicon.js';
+import { getDay, getVisits } from '../background/store.js';
 import { currentSession } from '../background/tracker.js';
 
 const $ = (id) => document.getElementById(id);
@@ -19,18 +21,22 @@ let liveSiteTimeEl = null;
 async function render() {
   await initI18n();
   renderLocaleSwitch(await initI18n());
-  const [today, settings, session, tabs] = await Promise.all([
+  const [today, visits, settings, session, tabs, favicons] = await Promise.all([
     getDay(dateKey()),
+    getVisits(dateKey()),
     getSettings(),
     currentSession(),
     chrome.tabs.query({ active: true, lastFocusedWindow: true }).catch(() => []),
+    loadFaviconMap(),
   ]);
+  // 图标必须在 renderSites 之前注入：siteIconUrl 是同步取值的。
+  setFavicons(favicons, settings.realFavicon);
   cachedSession = session;
   cachedToday = today;
   cachedTodayTotal = sumSeconds(today);
   renderStatus(session, today, tabs[0]);
   renderToday(today, settings);
-  renderSites(today, session);
+  renderSites(today, visits, session, settings.topSitesMetric);
   renderSwitches(settings);
   applyTheme(settings.theme);
   renderThemeSwitch(settings.theme);
@@ -96,45 +102,61 @@ function renderToday(today, settings) {
   $('todayTotalPlain').textContent = fmtDuration(total);
 }
 
-function renderSites(today, session) {
+function renderSites(today, visits, session, metric) {
   const list = $('siteList');
   list.textContent = '';
   liveSiteTimeEl = null;
-  const entries = Object.entries(today).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+  // popup 只看今天，且只显示当前排序维度：时长与次数都在后台记录，
+  // 但一次只读所选的那张表。
+  const byVisits = metric === 'visits';
+  const entries = sortRank(byVisits ? visits : today).slice(0, 5);
 
   if (!entries.length) {
     const empty = document.createElement('p');
     empty.className = 'empty';
-    empty.textContent = t('topEmpty');
+    empty.textContent = byVisits ? t('rankEmptyVisits') : t('topEmpty');
     list.append(empty);
     return;
   }
 
-  const max = entries[0][1];
-  for (const [domain, seconds] of entries) {
-    const row = document.createElement('div');
+  const max = entries[0].value;
+  for (const { domain, value } of entries) {
+    // 能还原成合法网址时整行是按钮（点击跳转），否则退化为纯展示行。
+    const clickable = siteUrl(domain) !== null;
+    const row = document.createElement(clickable ? 'button' : 'div');
     row.className = 'site-row';
+    if (clickable) {
+      row.type = 'button';
+      row.title = t('openSite', { site: domain });
+      row.setAttribute('aria-label', t('openSite', { site: domain }));
+      row.addEventListener('click', async () => {
+        // 跳转成功才收起弹窗；失败则留在原地，用户能继续看数据。
+        if (await openSiteTab(domain)) window.close();
+      });
+    }
 
     const name = document.createElement('span');
     name.className = 'site-name';
     name.textContent = domain;
     name.style.backgroundImage = siteIconUrl(domain);
 
+    // 只显示当前排序维度：按时间排显示时长，按次数排显示次数。
     const time = document.createElement('span');
     time.className = 'site-time num';
-    time.textContent = fmtDuration(seconds);
+    time.textContent = byVisits ? t('visitTimes', { n: value }) : fmtDuration(value);
 
-    // 当前站点的时间行实时推进（已落盘 + 未落盘会话）。
-    if (session?.domain === domain) {
+    // 时长才随时间增长，所以只有按时长排时才挂实时秒表（已落盘 + 未落盘会话）。
+    if (!byVisits && session?.domain === domain) {
       liveSiteTimeEl = time;
-      time.textContent = fmtDuration(seconds + (Date.now() - session.startedAt) / 1000);
+      time.textContent = fmtDuration(value + (Date.now() - session.startedAt) / 1000);
     }
 
     const track = document.createElement('div');
     track.className = 'bar-track';
     const fill = document.createElement('div');
     fill.className = 'bar-fill';
-    fill.style.width = `${Math.max((seconds / max) * 100, 2)}%`;
+    fill.style.width = `${Math.max((value / max) * 100, 2)}%`;
     track.append(fill);
 
     row.append(name, time, track);
@@ -189,7 +211,10 @@ function bindSwitches() {
 // 数据每分钟落盘、设置即时生效，监听变化保持弹窗实时。
 let sessionRenderTimer = null;
 chrome.storage.onChanged.addListener(async (changes, area) => {
-  if (area === 'local' && (changes.settings || Object.keys(changes).some((k) => k.startsWith('d:')))) {
+  if (
+    area === 'local' &&
+    (changes.settings || Object.keys(changes).some((k) => k.startsWith('d:') || k.startsWith('v:')))
+  ) {
     if (changes.settings) {
       const s = changes.settings.newValue;
       refreshLocale(s?.locale);

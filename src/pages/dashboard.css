@@ -815,12 +815,40 @@
 
 /* 网站排行（近 7 天） */
 
+/* 排行卡片头部的两组分段：维度（时间/次数）+ 范围（今日/近 7 天）。
+   窄视口下换行，避免挤爆标题。 */
+.rank-controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .top-row {
   display: grid;
   grid-template-columns: 200px 1fr auto;
   gap: 12px;
   align-items: center;
   padding: 7px 0;
+}
+
+/* 可跳转的排行项是 <button>：抹掉默认外观，排版仍由上面的 grid 负责。 */
+button.top-row {
+  width: 100%;
+  border: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+button.top-row:hover .top-name {
+  color: var(--primary);
+  text-decoration: underline;
+}
+
+button.top-row:focus-visible {
+  border-radius: 6px;
+  outline-offset: 2px;
 }
 
 .top-name {

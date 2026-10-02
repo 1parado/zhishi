@@ -111,9 +111,15 @@
           <div class="card card-pad">
             <div class="section-head">
               <h2 class="card-title" data-i18n="topSites">网站排行</h2>
-              <div class="segmented" role="group" aria-label="排行范围" id="topSitesRange">
-                <button class="segment" type="button" data-range="day" aria-pressed="false" data-i18n="rangeDay">今日</button>
-                <button class="segment" type="button" data-range="week" aria-pressed="true" data-i18n="rangeWeek">近 7 天</button>
+              <div class="rank-controls">
+                <div class="segmented" role="group" aria-label="排行维度" id="topSitesMetric">
+                  <button class="segment" type="button" data-metric="time" aria-pressed="true" data-i18n="metricTime">时间</button>
+                  <button class="segment" type="button" data-metric="visits" aria-pressed="false" data-i18n="metricVisits">次数</button>
+                </div>
+                <div class="segmented" role="group" aria-label="排行范围" id="topSitesRange">
+                  <button class="segment" type="button" data-range="day" aria-pressed="false" data-i18n="rangeDay">今日</button>
+                  <button class="segment" type="button" data-range="week" aria-pressed="true" data-i18n="rangeWeek">近 7 天</button>
+                </div>
               </div>
             </div>
             <div id="topSites"></div>
@@ -286,6 +292,16 @@
             <div class="hours-row" id="goalLine" hidden>
               <input class="input num" id="goalMinutes" type="number" min="15" max="1440" step="15" aria-label="每日目标分钟数" data-i18n-aria="goalMinutesAria" />
               <span class="muted" data-i18n="minutes">分钟</span>
+            </div>
+          </div>
+
+          <div class="card card-pad">
+            <div class="limit-master">
+              <div>
+                <h2 class="card-title" data-i18n="siteIconTitle">网站图标</h2>
+                <p class="card-desc" data-i18n="siteIconDesc">优先显示网站自己的图标——地址来自浏览器访问时解析好的图标，本扩展不抓取也不上传。关闭后只用内置品牌图标或首字母。</p>
+              </div>
+              <button class="switch" role="switch" id="faviconSwitch" aria-label="网站图标" data-i18n-aria="siteIconTitle"></button>
             </div>
           </div>
         </section>

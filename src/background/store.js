@@ -1,10 +1,14 @@
 /**
- * 每日聚合数据的存取。键格式 d:YYYY-MM-DD → { [domain]: seconds }，
+ * 每日聚合数据的存取。键格式：
+ *   d:YYYY-MM-DD → { [domain]: seconds }  使用时长
+ *   v:YYYY-MM-DD → { [domain]: count }    访问次数
+ * 时长与次数分开成键，避免混入同一对象后时长计算（sumSeconds 等）被污染。
  * 按天分键避免每次结算重写整个历史对象。
  */
 
 import { dateKey } from '../lib/pure.js';
 import { clearSegments } from '../lib/idb.js';
+import { clearFavicons } from '../lib/favicon.js';
 
 export async function addSeconds(domain, seconds, when = new Date()) {
   const dateStr = dateKey(when);
@@ -29,6 +33,36 @@ export async function getDay(key) {
   const k = `d:${key}`;
   const data = await chrome.storage.local.get(k);
   return data[k] || {};
+}
+
+/**
+ * 给某域名累加一次访问。由 tracker 在「活跃站点发生变化」时调用，
+ * 同一段连续停留只会记一次（去重在 tracker 侧靠 lastDomain 完成）。
+ */
+export async function addVisit(domain, when = new Date()) {
+  const key = `v:${dateKey(when)}`;
+  const data = await chrome.storage.local.get(key);
+  const day = data[key] || {};
+  day[domain] = (day[domain] || 0) + 1;
+  await chrome.storage.local.set({ [key]: day });
+  return day;
+}
+
+/** 某一天的访问次数：{ [domain]: count }，无数据返回空对象。 */
+export async function getVisits(key) {
+  const k = `v:${key}`;
+  const data = await chrome.storage.local.get(k);
+  return data[k] || {};
+}
+
+/** 读取全部访问次数：{ 'YYYY-MM-DD': { domain: count } }。 */
+export async function getAllVisits() {
+  const all = await chrome.storage.local.get(null);
+  const out = {};
+  for (const [k, v] of Object.entries(all)) {
+    if (k.startsWith('v:')) out[k.slice(2)] = v;
+  }
+  return out;
 }
 
 /** 读取全部历史：{ 'YYYY-MM-DD': { domain: seconds } }。 */
@@ -74,8 +108,9 @@ export async function clearGrant(domain) {
 export async function clearAllData() {
   const all = await chrome.storage.local.get(null);
   const keys = Object.keys(all).filter(
-    (k) => k.startsWith('d:') || k.startsWith('h:') || k === GRANTS_KEY
+    (k) => k.startsWith('d:') || k.startsWith('h:') || k.startsWith('v:') || k === GRANTS_KEY
   );
   if (keys.length) await chrome.storage.local.remove(keys);
   await clearSegments(); // IDB 中的浏览分段一并清除
+  await clearFavicons(); // 采集到的网站图标也属于浏览痕迹，一并清除
 }

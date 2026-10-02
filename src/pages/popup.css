@@ -137,6 +137,25 @@
   padding: 4px 0;
 }
 
+/* 可跳转的排行项是 <button>：抹掉默认外观，排版仍由上面的 grid 负责。 */
+button.site-row {
+  width: 100%;
+  border: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+button.site-row:hover .site-name {
+  color: var(--primary);
+  text-decoration: underline;
+}
+
+button.site-row:focus-visible {
+  border-radius: 4px;
+  outline-offset: 0;
+}
+
 .site-name {
   font-size: 13px;
   max-width: 240px;

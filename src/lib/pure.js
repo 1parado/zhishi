@@ -34,6 +34,21 @@ export function classifyUrl(url) {
   return host.replace(/^www\./, '') || null;
 }
 
+/**
+ * 把聚合域名还原成可打开的网址（排行项点击跳转用）。
+ * 只接受「至少两段、且每段都是字母数字连字符」的纯主机名——
+ * 域名来源是 classifyUrl，本就是 hostname，这里再挡一道，
+ * 避免把异常值拼进 URL；ipv6、端口、路径都不可能出现在这。
+ */
+export function siteUrl(domain) {
+  if (typeof domain !== 'string') return null;
+  const host = domain.trim().toLowerCase();
+  if (!/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(host)) return null;
+  // 每段不能以连字符开头或结尾（RFC 952/1123）
+  if (host.split('.').some((label) => label.startsWith('-') || label.endsWith('-'))) return null;
+  return `https://${host}/`;
+}
+
 /** 一次结算最多记入的毫秒数，防止 SW 长时间休眠后把闲置时间一次记满。 */
 export function capChunk(elapsedMs, capMs = 90_000) {
   return Math.max(0, Math.min(elapsedMs, capMs));
@@ -116,6 +131,50 @@ export function weekSeries(dailyMap, endKey, days = 7) {
     out.push({ key, seconds: sumSeconds(dailyMap[key]) });
   }
   return out;
+}
+
+/**
+ * 把多天数据合并成扁平的 { domain: 数值 }：range='day' 只取 endKey 当天，
+ * 否则取 endKey 往前含今天共 span 天求和。
+ */
+export function sumByDomain(map, endKey, range = 'day', span = 7) {
+  const totals = {};
+  const add = (day) => {
+    for (const [domain, value] of Object.entries(day || {})) {
+      if (typeof value !== 'number' || !Number.isFinite(value)) continue;
+      totals[domain] = (totals[domain] || 0) + value;
+    }
+  };
+  if (range === 'day') {
+    add(map?.[endKey]);
+  } else {
+    for (let i = span - 1; i >= 0; i--) add(map?.[shiftDateKey(endKey, -i)]);
+  }
+  return totals;
+}
+
+/**
+ * 扁平 { domain: 数值 } → 按数值降序的 [{ domain, value }]。
+ * 过滤非正数；并列时按域名升序，保证渲染顺序稳定（不随对象键序抖动）。
+ */
+export function sortRank(flat) {
+  return Object.entries(flat || {})
+    .filter(([, value]) => typeof value === 'number' && Number.isFinite(value) && value > 0)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([domain, value]) => ({ domain, value }));
+}
+
+/**
+ * 排行榜聚合：把 { 'YYYY-MM-DD': { domain: 数值 } } 按「今日」或「近 N 天」
+ * 求和后降序返回。
+ *
+ * 数值口径由调用方决定——传时长表就是按时间排，传次数表就是按次数排，
+ * 所以 dashboard 与 popup 能共用同一个聚合实现。
+ * 实时排序只读当前选中的那一张表：时长与次数各自独立记录，但每次
+ * 排行只展示所选维度，避免一行里并排两个数值造成误读。
+ */
+export function rankEntries(map, endKey, range = 'day', span = 7) {
+  return sortRank(sumByDomain(map, endKey, range, span));
 }
 
 /**

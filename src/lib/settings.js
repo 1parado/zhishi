@@ -15,8 +15,13 @@ export const DEFAULT_SETTINGS = {
   weekChart: 'bar',
   // 网站排行范围：day 今日 / week 近 7 天。
   topSitesRange: 'week',
+  // 网站排行维度：time 按使用时长 / visits 按访问次数。
+  topSitesMetric: 'time',
   // 时间线页时间轴图例默认只显示 Top 6 站点，展开后记住偏好。
   tlLegendExpanded: false,
+  // 网站图标：优先显示网站自己的 favicon（地址由浏览器访问时给出，本扩展
+  // 只做本地缓存，不抓取也不上传）。关闭后只用内置品牌图标或首字母。
+  realFavicon: true,
   // 界面语言：auto 跟随浏览器语言，或强制 zh / en。
   locale: 'auto',
   // 主题：auto 跟随系统，或强制 light / dark。
@@ -122,7 +127,9 @@ function normalize(raw) {
 
   if (!['bar', 'line', 'pie'].includes(merged.weekChart)) merged.weekChart = 'bar';
   if (!['day', 'week'].includes(merged.topSitesRange)) merged.topSitesRange = 'week';
+  if (!['time', 'visits'].includes(merged.topSitesMetric)) merged.topSitesMetric = 'time';
   merged.tlLegendExpanded = merged.tlLegendExpanded === true;
+  merged.realFavicon = merged.realFavicon !== false;
   if (!['zh', 'en'].includes(merged.locale)) merged.locale = 'auto';
   if (!['light', 'dark', 'auto'].includes(merged.theme)) merged.theme = 'auto';
 

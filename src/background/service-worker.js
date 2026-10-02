@@ -6,6 +6,7 @@
 import { ensureAlarms } from './health.js';
 import { ensureMenu } from './menu.js';
 import { updateBadge } from './badge.js';
+import { initFaviconCollector } from './favicon-collector.js';
 import { getHeartbeatState, isPopupOpen, noteHeartbeat, noteScrollActivity, tick } from './tracker.js';
 import { addSegmentRows } from '../lib/idb.js';
 
@@ -32,6 +33,10 @@ chrome.tabs.onRemoved.addListener(() => tick());
 chrome.windows.onFocusChanged.addListener(() => tick());
 chrome.windows.onRemoved.addListener(() => tick());
 chrome.idle.onStateChanged.addListener(() => tick());
+
+// 网站图标采集：与计时完全解耦的旁路。必须在顶层注册——
+// MV3 的 service worker 可能因 tabs 事件被唤醒，此时 onStartup 不会触发。
+initFaviconCollector();
 
 // 每分钟兜底结算：service worker 休眠期间由闹钟唤醒。
 chrome.alarms.create('flush', { periodInMinutes: 1 });

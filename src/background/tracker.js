@@ -9,9 +9,12 @@
 import { classifyUrl, capChunk, dateKey, inTimeWindow, isFocusBlocked } from '../lib/pure.js';
 import { getSettings } from '../lib/settings.js';
 import { addSegmentRows } from '../lib/idb.js';
-import { addSeconds, getDay, getGrants } from './store.js';
+import { addSeconds, addVisit, getDay, getGrants } from './store.js';
 
 const SESSION_KEY = 'session';
+// 最近一次开启会话的域名。访问次数靠它去重：会话每次 tick 都会被重开，
+// 没有这层记忆的话同一段停留会被记成几十次。
+const LAST_DOMAIN_KEY = 'lastDomain';
 const MAX_CHUNK_MS = 90_000;
 const TICK_DEBOUNCE_MS = 400;
 const HEARTBEAT_FRESH_MS = 90_000;
@@ -207,6 +210,8 @@ async function restartSession(idleState) {
   await chrome.storage.session.set({
     [SESSION_KEY]: { tabId: tab.id, windowId: win.id, domain, startedAt: Date.now() },
   });
+  // 会话真正开启后才算一次访问（被限额/专注模式拦截的站点不计）。
+  await noteVisit(domain);
 }
 
 /**
@@ -235,6 +240,27 @@ export async function blockReason(domain) {
 /** 该域名今天是否已触达限额、处于时段屏蔽窗口，或被专注模式拦截（且未处于放行期）。 */
 export async function isBlocked(domain) {
   return (await blockReason(domain)) !== null;
+}
+
+/**
+ * 记一次「访问」：仅当活跃站点相对于上次会话发生变化时计数。
+ *
+ * 判定为什么不用 session 本身：tick 每次都会结算并重开会话，活跃站点
+ * 没变时 session 也是新的，拿 session 比对必然重复计数。所以维护一份
+ * 跨越会话重开的 lastDomain。
+ *
+ * 窗口失焦再切回同一站点**不算**新访问（站点没变）——一次访问 = 一段连续停留。
+ * 浏览器重启后 storage.session 清空，首次访问会正常记一次。
+ *
+ * @returns {Promise<boolean>} 本次是否真的计了一次数
+ */
+export async function noteVisit(domain) {
+  if (!domain) return false;
+  const { [LAST_DOMAIN_KEY]: last } = await chrome.storage.session.get(LAST_DOMAIN_KEY);
+  if (last === domain) return false;
+  await chrome.storage.session.set({ [LAST_DOMAIN_KEY]: domain });
+  await addVisit(domain);
+  return true;
 }
 
 /** 当前正在计时的会话（popup 显示「正在记录」用）。 */

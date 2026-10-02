@@ -2,8 +2,10 @@ import {
   dateKey,
   filterLimits,
   isValidTime,
+  rankEntries,
   shortDate,
   shiftDateKey,
+  siteUrl,
   sumSeconds,
   toCSV,
   usageLevel,
@@ -21,8 +23,10 @@ import {
 import { applyI18n, fmtDuration, initI18n, refreshLocale, t } from '../lib/i18n.js';
 import { applyTheme, initTheme, resolvedTheme } from '../lib/theme.js';
 import { renderShareCardDataURL } from '../lib/share-card.js';
-import { siteIconUrl } from '../lib/site-icons.js';
-import { clearAllData, getAllDays } from '../background/store.js';
+import { siteIconUrl, setFavicons } from '../lib/site-icons.js';
+import { loadFaviconMap } from '../lib/favicon.js';
+import { openSiteTab } from '../lib/site-link.js';
+import { clearAllData, getAllDays, getAllVisits } from '../background/store.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -51,7 +55,7 @@ function renderActiveTab() {
   if (!latestSettings) return;
   switch (activeTabName) {
     case 'overview':
-      renderOverview(latestDays, latestSettings);
+      renderOverview(latestDays, latestSettings, latestVisits);
       break;
     case 'limits':
       renderLimits(latestSettings);
@@ -75,13 +79,18 @@ function renderActiveTab() {
 /* ---------- 数据加载 ---------- */
 
 async function loadAll() {
-  const [days, settings] = await Promise.all([getAllDays(), getSettings()]);
-  return { days, settings };
+  const [days, visits, settings, favicons] = await Promise.all([
+    getAllDays(),
+    getAllVisits(),
+    getSettings(),
+    loadFaviconMap(),
+  ]);
+  return { days, visits, settings, favicons };
 }
 
 /* ---------- 概览 ---------- */
 
-function renderOverview(days, settings) {
+function renderOverview(days, settings, visits) {
   renderWeekChartType(settings.weekChart);
   const todayKey = dateKey();
   const todayTotal = sumSeconds(days[todayKey]);
@@ -95,7 +104,7 @@ function renderOverview(days, settings) {
 
   renderWeekChart(week, settings.weekChart, settings.goal);
   renderHeatmap(days, todayKey);
-  renderTopSites(days, todayKey, settings.topSitesRange);
+  renderTopSites(days, visits, todayKey, settings.topSitesRange, settings.topSitesMetric);
 }
 
 // 图表形式切换，偏好持久化到设置。
@@ -122,6 +131,20 @@ for (const segment of document.querySelectorAll('#topSitesRange .segment')) {
 function renderTopSitesRangeType(range) {
   for (const segment of document.querySelectorAll('#topSitesRange .segment')) {
     segment.setAttribute('aria-pressed', String(segment.dataset.range === range));
+  }
+}
+
+// 排行维度切换（时间 / 次数）。
+for (const segment of document.querySelectorAll('#topSitesMetric .segment')) {
+  segment.addEventListener('click', () => {
+    topSitesExpanded = false;
+    saveSettings({ topSitesMetric: segment.dataset.metric });
+  });
+}
+
+function renderTopSitesMetricType(metric) {
+  for (const segment of document.querySelectorAll('#topSitesMetric .segment')) {
+    segment.setAttribute('aria-pressed', String(segment.dataset.metric === metric));
   }
 }
 
@@ -513,39 +536,44 @@ const TOP_SITES_DEFAULT = 7;
 const TOP_SITES_MAX = 50;
 let topSitesExpanded = false;
 
-function renderTopSites(days, todayKey, range) {
+function renderTopSites(days, visits, todayKey, range, metric) {
   const wrap = $('topSites');
   wrap.textContent = '';
+  // 控件高亮跟着渲染走——否则切换后按钮显示的和实际排序不一致。
+  renderTopSitesRangeType(range);
+  renderTopSitesMetricType(metric);
 
-  let entries;
-  if (range === 'day') {
-    entries = Object.entries(days[todayKey] || {});
-  } else {
-    const week = weekSeries(days, todayKey, 7);
-    const totals = {};
-    for (const day of week) {
-      for (const [domain, seconds] of Object.entries(days[day.key] || {})) {
-        totals[domain] = (totals[domain] || 0) + seconds;
-      }
-    }
-    entries = Object.entries(totals);
-  }
-  entries.sort((a, b) => b[1] - a[1]);
+  // 时长与次数是两张独立的表（d: / v:），但排行一次只读所选的那一张：
+  // 两个维度都在后台照常记录，展示则只显示当前排序依据，避免同一行并排两个数值。
+  const byVisits = metric === 'visits';
+  const entries = rankEntries(byVisits ? visits : days, todayKey, range);
   const total = entries.length;
   const shown = topSitesExpanded ? entries.slice(0, TOP_SITES_MAX) : entries.slice(0, TOP_SITES_DEFAULT);
 
   if (!total) {
     const empty = document.createElement('p');
     empty.className = 'empty';
-    empty.textContent = range === 'day' ? t('rankEmptyDay') : t('rankEmptyWeek');
+    empty.textContent = byVisits
+      ? t('rankEmptyVisits')
+      : range === 'day'
+        ? t('rankEmptyDay')
+        : t('rankEmptyWeek');
     wrap.append(empty);
     return;
   }
 
-  const max = shown[0][1];
-  for (const [domain, seconds] of shown) {
-    const row = document.createElement('div');
+  const max = shown[0].value;
+  for (const { domain, value } of shown) {
+    // 能还原成合法网址时整行是按钮（点击跳转），否则退化为纯展示行。
+    const clickable = siteUrl(domain) !== null;
+    const row = document.createElement(clickable ? 'button' : 'div');
     row.className = 'top-row';
+    if (clickable) {
+      row.type = 'button';
+      row.title = t('openSite', { site: domain });
+      row.setAttribute('aria-label', t('openSite', { site: domain }));
+      row.addEventListener('click', () => openSiteTab(domain));
+    }
 
     const name = document.createElement('span');
     name.className = 'top-name';
@@ -556,12 +584,14 @@ function renderTopSites(days, todayKey, range) {
     track.className = 'bar-track';
     const fill = document.createElement('div');
     fill.className = 'bar-fill';
-    fill.style.width = `${Math.max((seconds / max) * 100, 2)}%`;
+    fill.style.width = `${Math.max((value / max) * 100, 2)}%`;
     track.append(fill);
 
+    // 只显示当前排序维度：按时间排显示时长，按次数排显示次数。
+    // 另一个维度仍在后台记录（见 tracker.js 的 addSeconds / noteVisit），只是不在这里展示。
     const time = document.createElement('span');
     time.className = 'top-time num';
-    time.textContent = fmtDuration(seconds);
+    time.textContent = byVisits ? t('visitTimes', { n: value }) : fmtDuration(value);
 
     row.append(name, track, time);
     wrap.append(row);
@@ -577,7 +607,13 @@ function renderTopSites(days, todayKey, range) {
     more.addEventListener('click', () => {
       topSitesExpanded = !topSitesExpanded;
       if (latestDays && latestSettings) {
-        renderTopSites(latestDays, dateKey(), latestSettings.topSitesRange);
+        renderTopSites(
+          latestDays,
+          latestVisits,
+          dateKey(),
+          latestSettings.topSitesRange,
+          latestSettings.topSitesMetric
+        );
       }
     });
     wrap.append(more);
@@ -588,6 +624,7 @@ function renderTopSites(days, todayKey, range) {
 
 // 最新数据快照，供搜索/筛选免落盘即时刷新。
 let latestDays = null;
+let latestVisits = null;
 let latestSettings = null;
 let limitSearchText = '';
 let limitStatusFilter = 'all';
@@ -880,12 +917,20 @@ async function renderSettings(settings) {
   $('goalSwitch').setAttribute('aria-checked', String(settings.goal.enabled));
   $('goalLine').hidden = !settings.goal.enabled;
   $('goalMinutes').value = String(settings.goal.dailyMinutes);
+  $('faviconSwitch').setAttribute('aria-checked', String(settings.realFavicon));
   renderLocaleSwitch(await initI18n());
 }
 
 $('goalSwitch').addEventListener('click', async () => {
   const settings = await getSettings();
   await saveSettings({ goal: { enabled: !settings.goal.enabled } });
+});
+
+// 图标来源切换。settings 变化会触发本页重渲染（见 storage.onChanged），
+// 届时 setFavicons 会用新开关重新注入，无需手动刷新。
+$('faviconSwitch').addEventListener('click', async () => {
+  const settings = await getSettings();
+  await saveSettings({ realFavicon: !settings.realFavicon });
 });
 
 $('goalMinutes').addEventListener('change', (event) => {
@@ -1253,9 +1298,12 @@ $('clearBtn').addEventListener('click', async (event) => {
 async function render() {
   await initI18n();
   renderLocaleSwitch(await initI18n());
-  const { days, settings } = await loadAll();
+  const { days, visits, settings, favicons } = await loadAll();
   latestDays = days;
+  latestVisits = visits;
   latestSettings = settings;
+  // 图标必须在 renderActiveTab 之前注入：siteIconUrl 是同步取值的。
+  setFavicons(favicons, settings.realFavicon);
   applyTheme(settings.theme);
   renderThemeSwitch(settings.theme);
   renderActiveTab();
