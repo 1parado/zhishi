@@ -30,9 +30,15 @@
       </section>
 
       <section class="card card-pad">
-        <div class="section-head">
-          <h2 class="card-title" data-i18n="tlAxisTitle">时间轴</h2>
-          <span class="muted" data-i18n="tlAxisHint">每个色块代表一段网站使用，悬停查看详情。</span>
+        <div class="tl-head-row">
+          <div class="tl-head-titles">
+            <h2 class="card-title" data-i18n="tlAxisTitle">时间轴</h2>
+            <span class="muted" data-i18n="tlAxisHint">每个色块代表一段网站使用，悬停查看详情。</span>
+          </div>
+          <label class="merge-toggle" title="按根域名合并" data-i18n-title="mergeByRootHint">
+            <span class="muted" data-i18n="mergeByRoot">按根域名合并</span>
+            <button class="switch" role="switch" id="tlMerge" aria-label="按根域名合并" data-i18n-aria="mergeByRootHint"></button>
+          </label>
         </div>
         <div id="timeline"></div>
       </section>

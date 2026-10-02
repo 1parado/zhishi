@@ -35,6 +35,124 @@ export function classifyUrl(url) {
 }
 
 /**
+ * 多段公共后缀（「根域名」需要多取一段）的紧凑清单。
+ *
+ * 完整的 Public Suffix List 有上万条、体积远超本扩展所需；这里只收常见项，
+ * 未命中的一律按「最后两段」处理——对单段 TLD 的域名（linux.do、
+ * xiaomi.jobs.f.mioffice.cn → mioffice.cn）这是正确答案。
+ *
+ * 两类都收：
+ *  - ICANN 型（gov.cn、co.uk）：注册局把二级后缀开放给各级机构，真正的注册
+ *    发生在第三段；
+ *  - 私有型（github.io、vercel.app、blogspot.com）：平台把整段后缀租给用户，
+ *    不列的话所有用户的子域会被错误地合并成一个「网站」。
+ */
+const MULTI_LABEL_SUFFIXES = new Set([
+  // 中国大陆
+  'com.cn', 'net.cn', 'org.cn', 'gov.cn', 'edu.cn', 'ac.cn', 'mil.cn',
+  // 中国香港 / 中国澳门 / 中国台湾
+  'com.hk', 'net.hk', 'org.hk', 'edu.hk', 'gov.hk', 'idv.hk',
+  'com.mo', 'net.mo', 'org.mo', 'edu.mo', 'gov.mo',
+  'com.tw', 'net.tw', 'org.tw', 'edu.tw', 'gov.tw', 'idv.tw',
+  // 日本 / 韩国
+  'co.jp', 'ne.jp', 'or.jp', 'ac.jp', 'ad.jp', 'ed.jp', 'go.jp', 'gr.jp', 'lg.jp',
+  'co.kr', 'ne.kr', 'or.kr', 're.kr', 'pe.kr', 'go.kr', 'ac.kr', 'hs.kr', 'ms.kr', 'es.kr', 'sc.kr',
+  // 英国 / 爱尔兰
+  'co.uk', 'org.uk', 'me.uk', 'ltd.uk', 'plc.uk', 'net.uk', 'sch.uk', 'ac.uk', 'gov.uk', 'nhs.uk', 'police.uk',
+  'co.ie', 'gov.ie',
+  // 大洋洲
+  'com.au', 'net.au', 'org.au', 'edu.au', 'gov.au', 'asn.au', 'id.au',
+  'co.nz', 'net.nz', 'org.nz', 'ac.nz', 'govt.nz', 'geek.nz', 'gen.nz', 'kiwi.nz', 'school.nz',
+  // 拉美
+  'com.br', 'net.br', 'org.br', 'gov.br', 'edu.br', 'blog.br', 'wiki.br', 'eco.br',
+  'com.mx', 'net.mx', 'org.mx', 'edu.mx', 'gob.mx',
+  'com.ar', 'net.ar', 'org.ar', 'edu.ar', 'gob.ar',
+  'com.co', 'net.co', 'org.co', 'edu.co', 'gov.co',
+  'com.pe', 'net.pe', 'org.pe', 'edu.pe', 'gob.pe',
+  'com.ve', 'com.ec', 'com.uy', 'com.bo', 'com.py', 'com.do', 'com.gt',
+  'com.sv', 'com.hn', 'com.ni', 'com.pa', 'com.cu',
+  // 东南亚 / 南亚
+  'com.sg', 'net.sg', 'org.sg', 'edu.sg', 'gov.sg', 'per.sg',
+  'com.my', 'net.my', 'org.my', 'edu.my', 'gov.my', 'name.my',
+  'com.ph', 'net.ph', 'org.ph', 'edu.ph', 'gov.ph',
+  'com.vn', 'net.vn', 'org.vn', 'edu.vn', 'gov.vn',
+  'co.id', 'net.id', 'org.id', 'web.id', 'ac.id', 'sch.id', 'go.id', 'mil.id', 'biz.id', 'my.id', 'or.id',
+  'co.th', 'ac.th', 'go.th', 'in.th', 'mi.th', 'net.th', 'or.th',
+  'com.kh', 'com.la', 'com.mm', 'com.np', 'com.lk', 'com.bd', 'com.pk', 'net.pk', 'org.pk', 'edu.pk', 'gov.pk',
+  'co.in', 'net.in', 'org.in', 'firm.in', 'gen.in', 'ind.in', 'nic.in', 'ac.in', 'edu.in', 'gov.in', 'res.in',
+  // 非洲 / 中东
+  'co.za', 'net.za', 'org.za', 'gov.za', 'ac.za', 'web.za',
+  'co.ke', 'or.ke', 'ne.ke', 'go.ke', 'ac.ke', 'sc.ke', 'me.ke',
+  'com.ng', 'net.ng', 'org.ng', 'edu.ng', 'gov.ng', 'sch.ng', 'name.ng',
+  'com.eg', 'net.eg', 'org.eg', 'edu.eg', 'gov.eg', 'sci.eg',
+  'com.sa', 'net.sa', 'org.sa', 'edu.sa', 'gov.sa', 'med.sa', 'pub.sa', 'sch.sa',
+  'com.ae', 'net.ae', 'org.ae', 'ac.ae', 'gov.ae', 'mil.ae', 'sch.ae',
+  'co.il', 'org.il', 'net.il', 'ac.il', 'gov.il', 'k12.il', 'muni.il',
+  'co.ir', 'net.ir', 'org.ir', 'ac.ir', 'gov.ir', 'sch.ir',
+  // 欧洲其他
+  'com.tr', 'net.tr', 'org.tr', 'edu.tr', 'gov.tr', 'av.tr', 'bel.tr', 'biz.tr', 'gen.tr', 'info.tr', 'k12.tr', 'name.tr', 'tel.tr', 'web.tr',
+  'com.ru', 'net.ru', 'org.ru', 'pp.ru', 'msk.ru', 'spb.ru', 'int.ru',
+  'com.ua', 'net.ua', 'org.ua', 'edu.ua', 'gov.ua', 'in.ua',
+  'com.pl', 'net.pl', 'org.pl', 'edu.pl', 'gov.pl', 'info.pl', 'biz.pl', 'waw.pl',
+  'co.at', 'or.at', 'ac.at', 'gv.at', 'priv.at',
+  'co.hu', 'org.hu', 'gov.hu', 'edu.hu',
+  'com.gr', 'net.gr', 'org.gr', 'edu.gr', 'gov.gr',
+  'com.pt', 'net.pt', 'org.pt', 'edu.pt', 'gov.pt', 'publ.pt', 'int.pt',
+  'com.ro', 'org.ro', 'nt.ro',
+  'co.no', 'priv.no',
+  // 平台分配的私有后缀：不列会让同一平台的所有用户被并成一个站点
+  'github.io', 'gitlab.io', 'gitee.io', 'pages.dev', 'workers.dev',
+  'vercel.app', 'now.sh', 'netlify.app', 'netlify.com', 'web.app', 'firebaseapp.com',
+  'herokuapp.com', 'herokussl.com', 'glitch.me', 'repl.co', 'replit.app', 'repl.it',
+  'surge.sh', 'onrender.com', 'fly.dev', 'railway.app', 'webflow.io',
+  'blogspot.com', 'notion.site', 'wordpress.com', 'myshopify.com',
+  'translate.goog', 'cloudfront.net', 'amazonaws.com', 's3.amazonaws.com',
+]);
+
+const IPV4_RE = /^\d{1,3}(?:\.\d{1,3}){3}$/;
+
+/**
+ * 提取根域名（注册域 / registrable domain）：linux.do 与 cdk.linux.do
+ * 都归到 linux.do，方便跨子域合并统计。
+ *
+ * 规则：默认取最后两段；末两段命中多段公共后缀（gov.cn、co.uk）时再多取一段；
+ * IPv4 与单段主机名（localhost）原样返回；IPv6 字面量不做处理直接返回。
+ *
+ * @param {string} host 主机名（classifyUrl 的输出：已小写、已去 www.）
+ * @returns {string} 根域名；输入不是字符串或为空时返回 ''
+ */
+export function rootDomain(host) {
+  const h = typeof host === 'string' ? host.trim().toLowerCase().replace(/\.+$/, '') : '';
+  if (!h) return '';
+  // IPv6 字面量（URL.hostname 会给成 [::1] 形态）与 IPv4 没有根域名概念，原样返回。
+  if (h.includes(':')) return h;
+  if (IPV4_RE.test(h)) return h;
+  const labels = h.split('.').filter(Boolean);
+  if (labels.length <= 2) return labels.join('.');
+  // 从最长的候选后缀往下试：命中即再多取一段作为注册域。
+  for (let n = 4; n >= 2; n--) {
+    if (labels.length > n && MULTI_LABEL_SUFFIXES.has(labels.slice(-n).join('.'))) {
+      return labels.slice(-(n + 1)).join('.');
+    }
+  }
+  return labels.slice(-2).join('.');
+}
+
+/**
+ * 把扁平的 { 域名: 数值 } 按根域名合并求和——时长表与次数表都适用。
+ * 非数值一律跳过，口径与 sumByDomain / sortRank 保持一致。
+ */
+export function mergeByRoot(flat) {
+  const out = {};
+  for (const [domain, value] of Object.entries(flat || {})) {
+    if (typeof value !== 'number' || !Number.isFinite(value)) continue;
+    const key = rootDomain(domain) || domain;
+    out[key] = (out[key] || 0) + value;
+  }
+  return out;
+}
+
+/**
  * 把聚合域名还原成可打开的网址（排行项点击跳转用）。
  * 只接受「至少两段、且每段都是字母数字连字符」的纯主机名——
  * 域名来源是 classifyUrl，本就是 hostname，这里再挡一道，
@@ -47,6 +165,50 @@ export function siteUrl(domain) {
   // 每段不能以连字符开头或结尾（RFC 952/1123）
   if (host.split('.').some((label) => label.startsWith('-') || label.endsWith('-'))) return null;
   return `https://${host}/`;
+}
+
+/**
+ * 打开的标签页 → 待加入白名单的域名列表。
+ *
+ * 只认 http/https（复用 classifyUrl 的口径，浏览器内部页、扩展页、本地文件
+ * 一律返回 null 被跳过）；同一域名开了多个标签页时**保序去重**并记下标签数，
+ * 界面上显示成「×3」，不重复列三行。
+ *
+ * @param {Array<{url?: string}>} tabs chrome.tabs.query 的返回
+ * @returns {Array<{ domain: string, count: number }>}
+ */
+export function tabDomains(tabs) {
+  const counts = new Map();
+  for (const tab of Array.isArray(tabs) ? tabs : []) {
+    const domain = classifyUrl(tab?.url);
+    if (!domain) continue;
+    counts.set(domain, (counts.get(domain) || 0) + 1);
+  }
+  return [...counts].map(([domain, count]) => ({ domain, count }));
+}
+
+/**
+ * 合并域名列表（批量加入白名单用）：existing 在前、incoming 追加在后。
+ *
+ * existing 原样保留——顺序与大小写都不动，避免顺手改动用户已有的数据；
+ * incoming 做一次 trim + 小写（域名大小写不敏感，与表单、右键菜单的口径一致）；
+ * 两边都去重，空值丢弃。
+ */
+export function mergeDomains(existing, incoming) {
+  const out = [];
+  const seen = new Set();
+  for (const site of Array.isArray(existing) ? existing : []) {
+    if (typeof site !== 'string' || !site || seen.has(site)) continue;
+    seen.add(site);
+    out.push(site);
+  }
+  for (const raw of Array.isArray(incoming) ? incoming : []) {
+    const domain = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
+    if (!domain || seen.has(domain)) continue;
+    seen.add(domain);
+    out.push(domain);
+  }
+  return out;
 }
 
 /** 一次结算最多记入的毫秒数，防止 SW 长时间休眠后把闲置时间一次记满。 */
@@ -172,9 +334,12 @@ export function sortRank(flat) {
  * 所以 dashboard 与 popup 能共用同一个聚合实现。
  * 实时排序只读当前选中的那一张表：时长与次数各自独立记录，但每次
  * 排行只展示所选维度，避免一行里并排两个数值造成误读。
+ *
+ * byRoot 为 true 时再把结果按根域名合并（linux.do + cdk.linux.do → linux.do）。
  */
-export function rankEntries(map, endKey, range = 'day', span = 7) {
-  return sortRank(sumByDomain(map, endKey, range, span));
+export function rankEntries(map, endKey, range = 'day', span = 7, byRoot = false) {
+  const flat = sumByDomain(map, endKey, range, span);
+  return sortRank(byRoot ? mergeByRoot(flat) : flat);
 }
 
 /**

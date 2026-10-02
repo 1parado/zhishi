@@ -44,7 +44,13 @@
       </section>
 
       <section class="sites">
-        <h2 class="section-label" data-i18n="topSites">网站排行</h2>
+        <div class="sites-head">
+          <h2 class="section-label" data-i18n="topSites">网站排行</h2>
+          <label class="merge-toggle" title="按根域名合并" data-i18n-title="mergeByRootHint">
+            <span class="muted" data-i18n="mergeByRoot">按根域名合并</span>
+            <button class="switch" role="switch" id="siteMerge" aria-label="按根域名合并" data-i18n-aria="mergeByRootHint"></button>
+          </label>
+        </div>
         <div id="siteList"></div>
       </section>
 

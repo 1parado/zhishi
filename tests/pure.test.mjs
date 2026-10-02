@@ -12,13 +12,17 @@ import {
   inTimeWindow,
   isFocusBlocked,
   isValidTime,
+  mergeByRoot,
+  mergeDomains,
   rankEntries,
+  rootDomain,
   shiftDateKey,
   shortDate,
   siteUrl,
   sortRank,
   sumByDomain,
   sumSeconds,
+  tabDomains,
   toCSV,
   streakDays,
   usageLevel,
@@ -73,6 +77,107 @@ test('siteUrl 拒绝不可拼接的值（防拼进 URL 的注入面）', () => {
   // 连字符不能在段落首尾
   assert.equal(siteUrl('-a.com'), null);
   assert.equal(siteUrl('a-.com'), null);
+});
+
+test('tabDomains 提取标签页域名：保序去重、跳过非网页', () => {
+  const tabs = [
+    { url: 'https://github.com/a' },
+    { url: 'https://www.bilibili.com/video/1' },
+    { url: 'chrome://extensions/' },
+    { url: 'https://github.com/b' },
+    { url: 'chrome-extension://abc/src/pages/dashboard.html' },
+    { url: 'file:///D:/notes.md' },
+    {},
+    { url: 'https://BILIBILI.com/x' },
+  ];
+  assert.deepEqual(tabDomains(tabs), [
+    { domain: 'github.com', count: 2 },
+    { domain: 'bilibili.com', count: 2 },
+  ]);
+  // 容错：非法入参不抛
+  assert.deepEqual(tabDomains(undefined), []);
+  assert.deepEqual(tabDomains([]), []);
+});
+
+test('mergeDomains 追加去重：旧值原样保留，新值 trim + 小写', () => {
+  assert.deepEqual(mergeDomains(['github.com'], ['GitHub.com', ' zhihu.com ', 'zhihu.com']), [
+    'github.com',
+    'zhihu.com',
+  ]);
+  // 已有项的顺序与原样（大小写）不变，新项按候选顺序追加在后
+  assert.deepEqual(mergeDomains(['GitHub.com', 'a.com'], ['b.com', 'a.com']), [
+    'GitHub.com',
+    'a.com',
+    'b.com',
+  ]);
+  // 空值 / 非法值丢弃，重复的旧值只留一个
+  assert.deepEqual(mergeDomains(['a.com', 'a.com', '', null], ['', '   ', 42, 'b.com']), [
+    'a.com',
+    'b.com',
+  ]);
+  assert.deepEqual(mergeDomains(undefined, ['x.com']), ['x.com']);
+  assert.deepEqual(mergeDomains(['x.com'], undefined), ['x.com']);
+});
+
+test('rootDomain 取注册域：单段 TLD 归到最后两段', () => {
+  assert.equal(rootDomain('linux.do'), 'linux.do');
+  assert.equal(rootDomain('cdk.linux.do'), 'linux.do');
+  assert.equal(rootDomain('a.b.c.linux.do'), 'linux.do');
+  assert.equal(rootDomain('xiaomi.jobs.f.mioffice.cn'), 'mioffice.cn');
+  assert.equal(rootDomain('www.github.com'), 'github.com');
+  // 已经去 www. 的口径下也要能正常工作
+  assert.equal(rootDomain('localhost'), 'localhost');
+  assert.equal(rootDomain(''), '');
+  assert.equal(rootDomain(undefined), '');
+  assert.equal(rootDomain(42), '');
+  // 大小写与末尾点号归一
+  assert.equal(rootDomain('  CDK.Linux.DO.  '), 'linux.do');
+});
+
+test('rootDomain 识别多段公共后缀（gov.cn / co.uk 等）', () => {
+  assert.equal(rootDomain('www.tsinghua.edu.cn'), 'tsinghua.edu.cn');
+  assert.equal(rootDomain('news.bbc.co.uk'), 'bbc.co.uk');
+  assert.equal(rootDomain('shop.example.com.au'), 'example.com.au');
+  assert.equal(rootDomain('a.b.example.co.jp'), 'example.co.jp');
+  // 后缀本身（没有第三段）不做额外剪切
+  assert.equal(rootDomain('co.uk'), 'co.uk');
+});
+
+test('rootDomain 不被平台私有后缀误合并，且不误伤 IP', () => {
+  // github.io 是平台私有后缀：1parado.github.io 不该并成 github.io
+  assert.equal(rootDomain('1parado.github.io'), '1parado.github.io');
+  assert.equal(rootDomain('foo.vercel.app'), 'foo.vercel.app');
+  assert.equal(rootDomain('me.blogspot.com'), 'me.blogspot.com');
+  // IP 与 IPv6 字面量原样返回
+  assert.equal(rootDomain('192.168.1.10'), '192.168.1.10');
+  assert.equal(rootDomain('127.0.0.1'), '127.0.0.1');
+  assert.equal(rootDomain('[::1]'), '[::1]');
+});
+
+test('mergeByRoot 把同根域名的子域求和，跳过非数值', () => {
+  assert.deepEqual(
+    mergeByRoot({ 'linux.do': 100, 'cdk.linux.do': 50, 'a.b.linux.do': 25, 'github.com': 3 }),
+    { 'linux.do': 175, 'github.com': 3 }
+  );
+  assert.deepEqual(mergeByRoot({ 'x.com': 'oops', 'y.com': NaN, 'z.com': 5 }), { 'z.com': 5 });
+  assert.deepEqual(mergeByRoot(undefined), {});
+});
+
+test('rankEntries 支持按根域名合并后再排序', () => {
+  const days = {
+    '2026-05-11': { 'cdk.linux.do': 40, 'linux.do': 30, 'github.com': 60 },
+  };
+  // 不合并且按原始域名：github > cdk > linux
+  assert.deepEqual(rankEntries(days, '2026-05-11', 'day', 7, false), [
+    { domain: 'github.com', value: 60 },
+    { domain: 'cdk.linux.do', value: 40 },
+    { domain: 'linux.do', value: 30 },
+  ]);
+  // 合并后 linux.do 的两个子域相加（70）反超 github.com（60）
+  assert.deepEqual(rankEntries(days, '2026-05-11', 'day', 7, true), [
+    { domain: 'linux.do', value: 70 },
+    { domain: 'github.com', value: 60 },
+  ]);
 });
 
 test('rankEntries 按范围聚合后降序，并列按域名稳定排序', () => {

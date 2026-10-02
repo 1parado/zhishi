@@ -2,6 +2,7 @@ import {
   dateKey,
   filterLimits,
   isValidTime,
+  mergeDomains,
   rankEntries,
   shortDate,
   shiftDateKey,
@@ -26,6 +27,7 @@ import { renderShareCardDataURL } from '../lib/share-card.js';
 import { siteIconUrl, setFavicons } from '../lib/site-icons.js';
 import { loadFaviconMap } from '../lib/favicon.js';
 import { openSiteTab } from '../lib/site-link.js';
+import { listOpenTabs } from '../lib/open-tabs.js';
 import { clearAllData, getAllDays, getAllVisits } from '../background/store.js';
 
 const $ = (id) => document.getElementById(id);
@@ -104,7 +106,7 @@ function renderOverview(days, settings, visits) {
 
   renderWeekChart(week, settings.weekChart, settings.goal);
   renderHeatmap(days, todayKey);
-  renderTopSites(days, visits, todayKey, settings.topSitesRange, settings.topSitesMetric);
+  renderTopSites(days, visits, todayKey, settings.topSitesRange, settings.topSitesMetric, settings.mergeByRoot);
 }
 
 // 图表形式切换，偏好持久化到设置。
@@ -146,6 +148,17 @@ function renderTopSitesMetricType(metric) {
   for (const segment of document.querySelectorAll('#topSitesMetric .segment')) {
     segment.setAttribute('aria-pressed', String(segment.dataset.metric === metric));
   }
+}
+
+// 按根域名合并：只改展示层聚合方式，时长与次数始终按完整域名记录。
+$('topSitesMerge').addEventListener('click', async () => {
+  const s = await getSettings();
+  topSitesExpanded = false;
+  await saveSettings({ mergeByRoot: !(s.mergeByRoot !== false) });
+});
+
+function renderTopSitesMergeType(byRoot) {
+  $('topSitesMerge').setAttribute('aria-checked', String(byRoot === true));
 }
 
 function svgEl(tag, attrs = {}) {
@@ -536,17 +549,18 @@ const TOP_SITES_DEFAULT = 7;
 const TOP_SITES_MAX = 50;
 let topSitesExpanded = false;
 
-function renderTopSites(days, visits, todayKey, range, metric) {
+function renderTopSites(days, visits, todayKey, range, metric, byRoot) {
   const wrap = $('topSites');
   wrap.textContent = '';
   // 控件高亮跟着渲染走——否则切换后按钮显示的和实际排序不一致。
   renderTopSitesRangeType(range);
   renderTopSitesMetricType(metric);
+  renderTopSitesMergeType(byRoot);
 
   // 时长与次数是两张独立的表（d: / v:），但排行一次只读所选的那一张：
   // 两个维度都在后台照常记录，展示则只显示当前排序依据，避免同一行并排两个数值。
   const byVisits = metric === 'visits';
-  const entries = rankEntries(byVisits ? visits : days, todayKey, range);
+  const entries = rankEntries(byVisits ? visits : days, todayKey, range, 7, byRoot);
   const total = entries.length;
   const shown = topSitesExpanded ? entries.slice(0, TOP_SITES_MAX) : entries.slice(0, TOP_SITES_DEFAULT);
 
@@ -612,7 +626,8 @@ function renderTopSites(days, visits, todayKey, range, metric) {
           latestVisits,
           dateKey(),
           latestSettings.topSitesRange,
-          latestSettings.topSitesMetric
+          latestSettings.topSitesMetric,
+          latestSettings.mergeByRoot
         );
       }
     });
@@ -1019,6 +1034,7 @@ function renderFocus(settings) {
     empty.className = 'muted focus-empty';
     empty.textContent = t('focusEmpty');
     row.append(empty);
+    renderFocusPicker();
     return;
   }
   for (const site of focus.sites) {
@@ -1038,7 +1054,204 @@ function renderFocus(settings) {
     chip.append(del);
     row.append(chip);
   }
+  renderFocusPicker();
 }
+
+/* ---------- 白名单：从当前标签页批量添加 ---------- */
+
+// 打开面板时快照一次标签页列表：面板开着时整页每分钟还会重渲染，
+// 每次都重新 query 会让行序和勾选在用户眼皮底下跳动。
+let pickedTabs = [];
+let pickerSelected = new Set();
+let pickerOpen = false;
+// 「已加入 N 个站点」这类一次性反馈：留在脚注里直到下一次交互。
+// 不这样做的话，加入后 300ms 的整页重渲染会立刻把它冲掉，点击像没反应。
+let pickerFlash = '';
+
+/** 当前所有可添加的标签项（排除已在白名单里的域名）。 */
+function addableTabs() {
+  const sites = latestSettings?.focus?.sites ?? [];
+  return pickedTabs.filter((tab) => !sites.includes(tab.domain));
+}
+
+async function openPicker() {
+  pickerOpen = true;
+  pickerFlash = '';
+  pickerSelected.clear();
+  $('focusPicker').hidden = false;
+  $('focusImportToggle').setAttribute('aria-expanded', 'true');
+  pickedTabs = await listOpenTabs();
+  renderPicker();
+}
+
+function closePicker() {
+  pickerOpen = false;
+  pickerFlash = '';
+  pickerSelected.clear();
+  $('focusPicker').hidden = true;
+  $('focusImportToggle').setAttribute('aria-expanded', 'false');
+}
+
+function renderPicker() {
+  // 已经被加入白名单的域名不再可能被选中（批量加入后勾选自动落到 0）。
+  const addableSet = new Set(addableTabs().map((tab) => tab.domain));
+  for (const domain of [...pickerSelected]) {
+    if (!addableSet.has(domain)) pickerSelected.delete(domain);
+  }
+
+  const list = $('focusPickerList');
+  const sites = latestSettings?.focus?.sites ?? [];
+  list.textContent = '';
+
+  if (!pickedTabs.length) {
+    const empty = document.createElement('p');
+    empty.className = 'muted focus-empty';
+    empty.textContent = t('focusPickerEmpty');
+    list.append(empty);
+  }
+
+  for (const { domain, count } of pickedTabs) {
+    const inList = sites.includes(domain);
+    const row = document.createElement('div');
+    row.className = inList ? 'tab-pick-row is-added' : 'tab-pick-row';
+
+    const main = document.createElement('label');
+    main.className = 'tab-pick-main';
+
+    const box = document.createElement('input');
+    box.type = 'checkbox';
+    box.className = 'tab-pick-box';
+    box.disabled = inList;
+    // 已在白名单的行显示为「已勾选但不可改」——配右侧的「已在白名单」标签，
+    // 一眼能看出它已经在名单里，而不是「没被选中」。
+    box.checked = inList || pickerSelected.has(domain);
+    box.setAttribute('aria-label', domain);
+    // 只更新计数与按钮态，不整块重渲染——重建节点会让勾选框失去焦点。
+    box.addEventListener('change', () => {
+      if (box.checked) pickerSelected.add(domain);
+      else pickerSelected.delete(domain);
+      pickerFlash = '';
+      renderPickerFooter();
+    });
+
+    const icon = document.createElement('span');
+    icon.className = 'tab-pick-icon';
+    icon.style.backgroundImage = siteIconUrl(domain);
+
+    const name = document.createElement('span');
+    name.className = 'tab-pick-name';
+    name.textContent = domain;
+
+    main.append(box, icon, name);
+
+    if (count > 1) {
+      const meta = document.createElement('span');
+      meta.className = 'tab-pick-meta muted num';
+      meta.textContent = t('focusPickerTabs', { n: count });
+      main.append(meta);
+    }
+
+    row.append(main);
+
+    // 单个与批量共用勾选这一条路径：只勾一行再点「批量加入」就是只加一个。
+    // 曾经的「行内 ＋ 快速添加」是第二条路径，两套心智模型反而要用户先选，
+    // 已移除——已在白名单的行用标签说明状态即可。
+    if (inList) {
+      const tag = document.createElement('span');
+      tag.className = 'tab-pick-tag muted';
+      tag.textContent = t('focusPickerAdded');
+      row.append(tag);
+    }
+
+    list.append(row);
+  }
+
+  renderPickerFooter();
+}
+
+function renderPickerFooter() {
+  const addable = addableTabs();
+  const selected = pickerSelected.size;
+
+  $('focusPickerCount').textContent =
+    pickerFlash || (selected ? t('focusPickerSelected', { n: selected }) : t('focusPickerNoneSel'));
+
+  const addBtn = $('focusPickerAdd');
+  addBtn.disabled = selected === 0;
+  // 只勾一个时不再说「批量加入 1 个」——单个与批量走的是同一条勾选路径。
+  addBtn.textContent = selected
+    ? selected === 1
+      ? t('focusPickerAddOne')
+      : t('focusPickerAddN', { n: selected })
+    : t('focusPickerAdd');
+
+  // 全选按钮在「全选中 / 有未选」之间切换文案，有可选项时才可用。
+  const all = addable.map((tab) => tab.domain);
+  const allSelected = all.length > 0 && all.every((domain) => pickerSelected.has(domain));
+  const allBtn = $('focusPickerAll');
+  allBtn.disabled = all.length === 0;
+  allBtn.textContent = allSelected ? t('focusPickerClear') : t('focusPickerAll');
+
+  const note = $('focusImportNote');
+  note.hidden = false;
+  note.textContent = addable.length
+    ? t('focusImportFound', { n: addable.length })
+    : t('focusImportNone');
+}
+
+/** 面板开着时随整页重渲染刷新（例如从别处改了白名单）。未打开则不动。 */
+function renderFocusPicker() {
+  if (pickerOpen) renderPicker();
+}
+
+/**
+ * 加入白名单：批量与单条共用一条路径，一次写入，避免逐条 saveSettings
+ * 触发多次落盘与多次重渲染。新增 0 个（都已在白名单里）时不写存储。
+ */
+async function addFocusSites(domains) {
+  const s = await getSettings();
+  const sites = s.focus?.sites ?? [];
+  const next = mergeDomains(sites, domains);
+  const added = next.length - sites.length;
+
+  if (added > 0) {
+    await saveSettings({ focus: { sites: next } });
+    // 不等 storage.onChanged 的 300ms 防抖，先把本地镜像推进到最新，
+    // 让 chips 与选择器（renderFocus 内部会带上）立刻反映结果。
+    latestSettings = { ...s, focus: { ...(s.focus ?? { enabled: false }), sites: next } };
+  }
+  if (pickerOpen) {
+    pickerFlash = added ? t('focusPickerAddedN', { n: added }) : t('focusPickerAllAdded');
+  }
+  if (added > 0 || pickerOpen) renderFocus(latestSettings);
+}
+
+$('focusImportToggle').addEventListener('click', () => {
+  if (pickerOpen) closePicker();
+  else openPicker();
+});
+
+$('focusPickerRefresh').addEventListener('click', async () => {
+  pickerFlash = '';
+  pickedTabs = await listOpenTabs();
+  renderPicker();
+});
+
+$('focusPickerAll').addEventListener('click', () => {
+  const all = addableTabs().map((tab) => tab.domain);
+  const allSelected = all.length > 0 && all.every((domain) => pickerSelected.has(domain));
+  pickerSelected = new Set(allSelected ? [] : all);
+  pickerFlash = '';
+  // 勾选框要跟着动，整块重渲染一次最省事（这里没有焦点需要保留）。
+  renderPicker();
+});
+
+$('focusPickerAdd').addEventListener('click', () => {
+  if (!pickerSelected.size) return;
+  addFocusSites([...pickerSelected]);
+});
+
+$('focusPickerClose').addEventListener('click', closePicker);
 
 $('focusSwitch').addEventListener('click', async () => {
   const s = await getSettings();
@@ -1131,6 +1344,9 @@ async function redrawShareCard() {
     strings: shareStrings(),
     profile: latestSettings?.profile || null,
     theme: resolvedTheme(),
+    // 分享卡片是导出物，没有自己的开关：跟随「按根域名合并」设置，
+    // 免得卡片上的 Top5 与仪表盘排行显示不一致。
+    byRoot: latestSettings?.mergeByRoot !== false,
   });
   $('sharePreview').src = url;
   $('shareDownload').href = url;

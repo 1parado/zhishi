@@ -403,6 +403,160 @@
   padding: 2px 0;
 }
 
+/* 专注模式开关旁的一句小字提示：不抢视线，只在需要时被读到 */
+.switch-with-hint {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.focus-hint {
+  font-size: 12px;
+  line-height: 1.4;
+  /* 中文可以任意处折行，宽度给窄了会把「白名单」拆成两行；240px 容得下
+     中文整句，英文则按词自然折行。 */
+  max-width: 240px;
+  text-align: right;
+}
+
+/* 「从当前标签页添加」入口 */
+.focus-tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+
+.focus-import-note {
+  font-size: 12px;
+}
+
+/* 已打开标签页选择器 */
+.tab-picker {
+  margin-top: 12px;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 2px);
+  background: color-mix(in srgb, var(--secondary) 45%, var(--card));
+  overflow: hidden;
+}
+
+.tab-picker[hidden] {
+  display: none;
+}
+
+/* 面板头只剩一个「刷新」按钮，靠右对齐与原位置保持一致 */
+.tab-picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.tab-picker-head .muted {
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.tab-pick-list {
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.tab-pick-list .focus-empty {
+  padding: 8px 12px;
+}
+
+.tab-pick-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+}
+
+.tab-pick-row:hover {
+  background: var(--accent);
+}
+
+/* 整行可点：勾选框 + 图标 + 域名一起构成 label */
+.tab-pick-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.tab-pick-box {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  accent-color: var(--primary);
+  cursor: inherit;
+}
+
+.tab-pick-icon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.tab-pick-name {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tab-pick-meta {
+  flex: none;
+  font-size: 12px;
+}
+
+/* 已在白名单的行：整体压暗，勾选框禁用 */
+.tab-pick-row.is-added .tab-pick-main,
+.tab-pick-row.is-added .tab-pick-box {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.tab-pick-tag {
+  flex: none;
+  font-size: 12px;
+}
+
+.tab-picker-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.tab-picker-foot .muted {
+  font-size: 12px;
+}
+
+.tab-picker-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 /* 分享卡片预览弹层 */
 .share-modal {
   position: fixed;
@@ -820,6 +974,7 @@
 .rank-controls {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   justify-content: flex-end;
   gap: 8px;
 }

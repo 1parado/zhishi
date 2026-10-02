@@ -1,4 +1,4 @@
-import { dateKey, shortDate, shiftDateKey, sumSeconds } from '../lib/pure.js';
+import { dateKey, rootDomain, shortDate, shiftDateKey, sumSeconds } from '../lib/pure.js';
 import { applyI18n, fmtDuration, initI18n, t } from '../lib/i18n.js';
 import { initTheme } from '../lib/theme.js';
 import { getSegmentsByDate } from '../lib/idb.js';
@@ -19,6 +19,8 @@ const LEGEND_TOP_N = 6;
 let tlLegendExpanded = false;
 // 当前点击高亮的站点（null = 不高亮），缩放重绘后保持。
 let highlightDomain = null;
+// 按根域名合并（设置项，默认开）：只改展示口径，记录层仍是完整域名。
+let mergeRoot = true;
 
 function dateLabel(key) {
   const [y, m, d] = key.split('-').map(Number);
@@ -44,6 +46,8 @@ async function render() {
   await initTheme();
   const settings = await getSettings();
   tlLegendExpanded = settings.tlLegendExpanded;
+  mergeRoot = settings.mergeByRoot !== false;
+  $('tlMerge').setAttribute('aria-checked', String(mergeRoot));
 
   const [hourBuckets, day, segments] = await Promise.all([
     getTimeline(currentDate),
@@ -81,8 +85,14 @@ async function render() {
 }
 
 /** 24 小时色带（含缩放窗口、重叠错位、brush 拖选、点击跳转）。 */
-function renderRibbon(segsAbs, wrap) {
+function renderRibbon(rawSegs, wrap) {
   wrap.textContent = ''; // 缩放/重置的重绘也走这里，先清空旧内容
+  // 按根域名合并只改展示口径：色块、图例、悬停与点击全部落到根域名上，
+  // 记录层（IDB 分段）仍保留完整域名，关掉开关即可看明细。
+  // 递归重绘传入的是已归一化的数组，rootDomain 作用于根域名是幂等的。
+  const segsAbs = mergeRoot
+    ? rawSegs.map((seg) => ({ ...seg, domain: rootDomain(seg.domain) || seg.domain }))
+    : rawSegs;
   const startMs = dayStartMs(currentDate);
   const dayEnd = startMs + 86400000;
   const vStart = view.start ?? startMs;
@@ -378,5 +388,12 @@ function goto(key) {
 $('prevDay').addEventListener('click', () => goto(shiftDateKey(currentDate, -1)));
 $('nextDay').addEventListener('click', () => goto(shiftDateKey(currentDate, 1)));
 $('todayBtn').addEventListener('click', () => goto(dateKey()));
+
+// 切换合并口径后色块与图例的聚合方式全变，直接整页重绘（缩放窗口一并复位）。
+$('tlMerge').addEventListener('click', async () => {
+  const settings = await getSettings();
+  await saveSettings({ mergeByRoot: !(settings.mergeByRoot !== false) });
+  await render();
+});
 
 render();

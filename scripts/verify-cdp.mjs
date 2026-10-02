@@ -167,6 +167,29 @@ async function evaluate(c, expression, label = '') {
   return result.result?.value;
 }
 
+/**
+ * 取元素在页面坐标系里的裁剪框（配合 captureBeyondViewport 使用），
+ * 用来截单个卡片的特写。expression 求值结果需是一个 DOM 元素。
+ */
+async function clipOf(c, expression, pad = 16) {
+  const rect = await evaluate(
+    c,
+    `(() => {
+      const el = ${expression};
+      if (!el) return null;
+      const b = el.getBoundingClientRect();
+      return { x: b.left + window.scrollX, y: b.top + window.scrollY, width: b.width, height: b.height };
+    })()`
+  );
+  if (!rect) return undefined;
+  return {
+    x: Math.max(rect.x - pad, 0),
+    y: Math.max(rect.y - pad, 0),
+    width: rect.width + pad * 2,
+    height: rect.height + pad * 2,
+  };
+}
+
 async function withRetry(fn, attempts = 2, label = '') {
   for (let i = 0; i < attempts; i++) {
     try {
@@ -179,11 +202,13 @@ async function withRetry(fn, attempts = 2, label = '') {
   }
 }
 
-async function screenshot(c, filename) {
+async function screenshot(c, filename, clip) {
   await sleep(400);
   const { data } = await c.send('Page.captureScreenshot', {
     format: 'png',
     captureBeyondViewport: true,
+    // clip 用页面坐标（配合 captureBeyondViewport），用来裁出单个卡片的特写。
+    ...(clip ? { clip: { ...clip, scale: 1 } } : {}),
   });
   try {
     writeFileSync(join(outDir, filename), Buffer.from(data, 'base64'));
@@ -436,6 +461,44 @@ try {
         await saveSettings({ topSitesRange: 'week' });
         await new Promise((r) => setTimeout(r, 400));
         out.weekRows = document.querySelectorAll('#topSites .top-name').length;
+        // 按根域名合并：注入同一根域名的两个子域 + 一个无关站点，值取中档
+        // （既超过 extra*.com，又低于演示数据的量级），既能进榜单又不抢首行。
+        const mergeKey = 'd:' + dateKey();
+        const mergeDay = (await chrome.storage.local.get(mergeKey))[mergeKey] || {};
+        mergeDay['e2e-root.do'] = 133;
+        mergeDay['cdk.e2e-root.do'] = 122;
+        mergeDay['e2e-other.com'] = 111;
+        await chrome.storage.local.set({ [mergeKey]: mergeDay });
+        await saveSettings({ mergeByRoot: true, topSitesRange: 'day', locale: 'zh' });
+        await new Promise((r) => setTimeout(r, 600));
+        const namesOf = () => [...document.querySelectorAll('#topSites .top-name')].map((el) => el.textContent);
+        const valueOf = (d) => {
+          const row = [...document.querySelectorAll('#topSites .top-row')].find(
+            (r) => r.querySelector('.top-name')?.textContent === d
+          );
+          return row?.querySelector('.top-time')?.textContent ?? '';
+        };
+        out.mergeOnNames = namesOf();
+        out.mergeOnValue = valueOf('e2e-root.do'); // 133 + 122 = 255 → 4 分 15 秒
+        out.mergeOnSubHidden = !out.mergeOnNames.includes('cdk.e2e-root.do');
+        out.mergeSwitchOn = document.getElementById('topSitesMerge')?.getAttribute('aria-checked') ?? '';
+        // 关掉 → 子域明细各自成行。
+        await saveSettings({ mergeByRoot: false });
+        await new Promise((r) => setTimeout(r, 600));
+        out.mergeOffNames = namesOf();
+        out.mergeOffRootValue = valueOf('e2e-root.do');
+        out.mergeOffSubValue = valueOf('cdk.e2e-root.do');
+        out.mergeSwitchOff = document.getElementById('topSitesMerge')?.getAttribute('aria-checked') ?? '';
+        // 开关本体可点（覆盖点击路径），点一下回到合并态。
+        document.getElementById('topSitesMerge').click();
+        await new Promise((r) => setTimeout(r, 600));
+        out.mergeAfterClick = document.getElementById('topSitesMerge')?.getAttribute('aria-checked') ?? '';
+        out.mergeAfterClickNames = namesOf();
+        await saveSettings({ topSitesRange: 'week' });
+        // 清理注入：重新读再写，避免覆盖计时引擎的并发结算。
+        const mergeFresh = (await chrome.storage.local.get(mergeKey))[mergeKey] || {};
+        for (const d of ['e2e-root.do', 'cdk.e2e-root.do', 'e2e-other.com']) delete mergeFresh[d];
+        await chrome.storage.local.set({ [mergeKey]: mergeFresh });
         // GitHub 链接与图标 + Settings 选项卡
         out.githubLink = document.querySelector('.github-link')?.href ?? '';
         out.githubIcon = !!document.querySelector('.github-link svg');
@@ -505,6 +568,18 @@ try {
       console.log(
         `排行单维度 → e2e-dual.com 按次数「${chartChecks.cellVisits}」不带时长，按时长「${chartChecks.cellTime}」不带次数 ${singleOk ? '✓' : '✗'}`
       );
+      const mergeOk =
+        chartChecks.mergeOnValue === '4 分 15 秒' &&
+        chartChecks.mergeOnSubHidden === true &&
+        chartChecks.mergeSwitchOn === 'true' &&
+        chartChecks.mergeOffRootValue === '2 分 13 秒' &&
+        chartChecks.mergeOffSubValue === '2 分 2 秒' &&
+        chartChecks.mergeSwitchOff === 'false' &&
+        chartChecks.mergeAfterClick === 'true' &&
+        !chartChecks.mergeAfterClickNames.includes('cdk.e2e-root.do');
+      console.log(
+        `按根域名合并 → 开：e2e-root.do「${chartChecks.mergeOnValue}」= 133+122，子域隐藏 ${chartChecks.mergeOnSubHidden}；关：e2e-root.do「${chartChecks.mergeOffRootValue}」+ cdk.e2e-root.do「${chartChecks.mergeOffSubValue}」各自成行；开关 aria ${chartChecks.mergeSwitchOn}→${chartChecks.mergeSwitchOff}→${chartChecks.mergeAfterClick} ${mergeOk ? '✓' : '✗'}`
+      );
       console.log(
         `i18n + GitHub → 链接 ${chartChecks.githubLink}，图标 ${chartChecks.githubIcon}，EN 标签「${chartChecks.enTab}」，ZH 标签「${chartChecks.zhTab}」 ${i18nOk ? '✓' : '✗'}`
       );
@@ -521,6 +596,19 @@ try {
             : '✗'
         }`
       );
+      // 网站排行截图：固定在「今日 + 按时间 + 合并开」的默认样子，
+      // 与 docs/screenshots/top-sites.png 的用途对应。
+      await evaluate(
+        c,
+        `(async () => {
+          const { saveSettings } = await import(chrome.runtime.getURL('src/lib/settings.js'));
+          await saveSettings({ topSitesRange: 'day', topSitesMetric: 'time', mergeByRoot: true, locale: 'zh' });
+          return true;
+        })()`
+      );
+      await sleep(600);
+      // 只截「网站排行」这张卡片：README 里它是独立配图，整页截图会与概览图重复。
+      await screenshot(c, 'top-sites.png', await clipOf(c, `document.querySelector('#topSites').closest('.card')`));
       await screenshot(c, 'overview-charts.png');
       // 回到限额选项卡再截图，保证截图内容与文件名一致。
       await evaluate(c, `document.querySelector('.tab[data-tab="limits"]').click()`);
@@ -647,6 +735,54 @@ try {
     `popup 排行点击跳转 → ${popupJump.buttons}/${popupJump.rows} 行可点击；未开→新建 ${jumpCreate?.url ?? '(未调用)'}，已开→切换标签 #${jumpSwitch?.id ?? '?'} ${jumpOk ? '✓' : '✗'}`
   );
 
+  // 4c2b. popup 的「按根域名合并」开关：注入同一根域名的两个子域，
+  //       开着应合成一行、关掉回到两行明细。值取极端大，保证一定进 Top5。
+  const popupMerge = await withPage(
+    `chrome-extension://${extId}/src/pages/popup.html`,
+    'popup.html',
+    async (c) =>
+      evaluate(
+        c,
+        `(async () => {
+      const { saveSettings } = await import(chrome.runtime.getURL('src/lib/settings.js'));
+      const key = 'd:' + new Date().toLocaleDateString('sv-SE');
+      const day = (await chrome.storage.local.get(key))[key] || {};
+      day['e2e-pm.do'] = 40000;
+      day['cdn.e2e-pm.do'] = 20000;
+      await chrome.storage.local.set({ [key]: day });
+      await saveSettings({ mergeByRoot: true });
+      await new Promise((r) => setTimeout(r, 800));
+      const snap = () => ({
+        names: [...document.querySelectorAll('#siteList .site-name')].map((el) => el.textContent),
+        first: document.querySelector('#siteList .site-time')?.textContent ?? '',
+        sw: document.getElementById('siteMerge')?.getAttribute('aria-checked') ?? '',
+      });
+      const on = snap();
+      // 真点开关（覆盖点击路径 → 写设置 → onChanged 重渲染）。
+      document.getElementById('siteMerge').click();
+      await new Promise((r) => setTimeout(r, 900));
+      const off = snap();
+      const fresh = (await chrome.storage.local.get(key))[key] || {};
+      delete fresh['e2e-pm.do'];
+      delete fresh['cdn.e2e-pm.do'];
+      await chrome.storage.local.set({ [key]: fresh });
+      await saveSettings({ mergeByRoot: true });
+      return { on, off };
+    })()`
+      )
+  );
+  const popupMergeOk =
+    popupMerge.on.names[0] === 'e2e-pm.do' &&
+    !popupMerge.on.names.includes('cdn.e2e-pm.do') &&
+    popupMerge.on.sw === 'true' &&
+    popupMerge.off.names[0] === 'e2e-pm.do' &&
+    popupMerge.off.names[1] === 'cdn.e2e-pm.do' &&
+    popupMerge.off.sw === 'false';
+  console.log(
+    `popup 按根域名合并 → 开：${popupMerge.on.names[0]}「${popupMerge.on.first}」（${popupMerge.on.names.length} 行，子域已并入）；关：${popupMerge.off.names.slice(0, 2).join(' / ')}（${popupMerge.off.names.length} 行）；aria ${popupMerge.on.sw}→${popupMerge.off.sw} ${popupMergeOk ? '✓' : '✗'}`
+  );
+
+
   // 4c3. 访问次数：noteVisit 仅在活跃站点发生变化时计数（同站点重复调用不计），
   //      popup 排行跟随维度只显示「N 次」。
   const visitCount = await withPage(`chrome-extension://${extId}/src/pages/popup.html`, 'popup.html', async (c) => {
@@ -719,6 +855,7 @@ try {
   //   先验证旧数据回退（h: 小时桶近似），再种入 IDB 分段重载验证精确甘特块。
   const yesterday = new Date(Date.now() - 86_400_000).toLocaleDateString('sv-SE');
   const dayBefore = new Date(Date.now() - 2 * 86_400_000).toLocaleDateString('sv-SE');
+  const threeDaysAgo = new Date(Date.now() - 3 * 86_400_000).toLocaleDateString('sv-SE');
 
   const tl = await withRetry(
     () =>
@@ -847,6 +984,78 @@ try {
     brush.opened.startsWith('https://');
   console.log(
     `brush 缩放与点击 → 初始刻度 ${brush.t0} / 拖选后首刻度 ${brush.t1} / 重置按钮 ${brush.hasReset} / 重置后 ${brush.t2} / 色块点击打开 ${brush.opened} ${brushOk ? '✓' : '✗'}`
+  );
+
+  // 4g. 时间线「按根域名合并」：同一根域名的两个子域在合并口径下
+  //     会被相邻合并成一块、图例只剩一条；关掉后各自成块。
+  const tlMerge = await withRetry(
+    () =>
+      withPage(
+        `chrome-extension://${extId}/src/pages/timeline.html?date=${threeDaysAgo}`,
+        'timeline.html',
+        async (c) => {
+          await evaluate(
+            c,
+            `(async () => {
+          const { saveSettings } = await import(chrome.runtime.getURL('src/lib/settings.js'));
+          await saveSettings({ mergeByRoot: true });
+          await chrome.storage.local.set({
+            'h:${threeDaysAgo}': { '09': { 'linux.do': 600, 'cdk.linux.do': 300 } },
+          });
+          return true;
+        })()`
+          );
+          await c.send('Page.navigate', {
+            url: `chrome-extension://${extId}/src/pages/timeline.html?date=${threeDaysAgo}`,
+          });
+          await until(
+            async () => {
+              const v = await c.send('Runtime.evaluate', {
+                expression:
+                  "document.readyState === 'complete' && document.querySelectorAll('.tl-tick').length > 0 ? 'complete' : 'loading'",
+                returnByValue: true,
+              });
+              if (v.result?.value !== 'complete') throw new Error(String(v.result?.value));
+              return true;
+            },
+            30_000,
+            '时间线合并开关加载'
+          );
+          const snapshot = `JSON.stringify({
+            segs: document.querySelectorAll('.tl-seg').length,
+            legend: [...document.querySelectorAll('#timeline .legend-item')].map((el) => el.textContent),
+            sw: document.getElementById('tlMerge')?.getAttribute('aria-checked') ?? '',
+          })`;
+          const on = JSON.parse(await evaluate(c, snapshot));
+          // 真点开关，覆盖点击路径（点完会整页重绘）。
+          await evaluate(c, `document.getElementById('tlMerge').click()`);
+          await sleep(800);
+          const off = JSON.parse(await evaluate(c, snapshot));
+          // 还原：设置回默认开，并清掉注入的小时桶。
+          await evaluate(
+            c,
+            `(async () => {
+          const { saveSettings } = await import(chrome.runtime.getURL('src/lib/settings.js'));
+          await saveSettings({ mergeByRoot: true });
+          await chrome.storage.local.remove('h:${threeDaysAgo}');
+          return true;
+        })()`
+          );
+          return { on, off };
+        }
+      ),
+    2,
+    '时间线按根域名合并'
+  );
+  const tlMergeOk =
+    tlMerge.on.segs === 1 &&
+    tlMerge.on.legend.join(',') === 'linux.do' &&
+    tlMerge.on.sw === 'true' &&
+    tlMerge.off.segs === 2 &&
+    tlMerge.off.legend.join(',') === 'linux.do,cdk.linux.do' &&
+    tlMerge.off.sw === 'false';
+  console.log(
+    `时间线按根域名合并 → 开：${tlMerge.on.segs} 块 / 图例 [${tlMerge.on.legend.join(', ')}]；关：${tlMerge.off.segs} 块 / 图例 [${tlMerge.off.legend.join(', ')}]；aria ${tlMerge.on.sw}→${tlMerge.off.sw} ${tlMergeOk ? '✓' : '✗'}`
   );
 
   // 4g. 语言持久化：popup 切 EN 后，直开仪表盘应保持英文（含时长单位）。
@@ -1124,6 +1333,212 @@ try {
     iconRender.restored.includes('hdslb.com');
   console.log(
     `图标渲染 → 开启用真图标 ${iconRender.withFavicon.includes('hdslb.com')} / 关闭回落内置 SVG ${iconRender.withoutFavicon.includes('data:image/svg+xml') && !iconRender.withoutFavicon.includes('hdslb.com')} / 重新开启恢复 ${iconRender.restored.includes('hdslb.com')} ${iconRenderOk ? '✓' : '✗'}`
+  );
+
+  // 白名单「从当前标签页添加」：stub chrome.tabs.query 后跑完整交互。
+  const allowImport = await withPage(
+    `chrome-extension://${extId}/src/pages/dashboard.html?tab=allowlist`,
+    'dashboard.html',
+    async (c) => {
+      const out = await evaluate(
+        c,
+        `(async () => {
+          const { getSettings, saveSettings } = await import(chrome.runtime.getURL('src/lib/settings.js'));
+          const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+          // 固定在中文界面 + 固定白名单，文案与行数才可断言。
+          await saveSettings({ locale: 'zh', focus: { enabled: false, sites: ['github.com'] } });
+          await wait(600);
+
+          // 覆盖三类边界：重复域名（同域开两个标签）、浏览器内部页、扩展页、已在白名单。
+          const fakeTabs = [
+            { url: 'https://bilibili.com/video/1' },
+            { url: 'https://github.com/1parado' },
+            { url: 'chrome://extensions/' },
+            { url: 'https://bilibili.com/video/2' },
+            { url: 'https://zhihu.com/hot' },
+            { url: 'chrome-extension://abc/src/pages/popup.html' },
+            { url: 'file:///D:/notes.md' },
+          ];
+          const origQuery = chrome.tabs.query;
+          chrome.tabs.query = async () => fakeTabs;
+          try {
+            const toggle = document.getElementById('focusImportToggle');
+            const picker = document.getElementById('focusPicker');
+            const hint = document.querySelector('.focus-hint').textContent;
+
+            const closedBefore = picker.hidden;
+            toggle.click();
+            await wait(300);
+            const openedAfter = !picker.hidden && toggle.getAttribute('aria-expanded') === 'true';
+            const note = document.getElementById('focusImportNote').textContent;
+            // 面板头部的说明段落已删除，只剩「刷新」按钮。
+            const headHint = !!document.querySelector('.tab-picker-head p');
+
+            const rows = [...document.querySelectorAll('.tab-pick-row')].map((el) => ({
+              domain: el.querySelector('.tab-pick-name').textContent,
+              meta: el.querySelector('.tab-pick-meta') ? el.querySelector('.tab-pick-meta').textContent : '',
+              added: el.classList.contains('is-added'),
+              boxDisabled: el.querySelector('.tab-pick-box').disabled,
+              boxChecked: el.querySelector('.tab-pick-box').checked,
+              hasQuick: !!el.querySelector('.tab-pick-quick'),
+              icon: el.querySelector('.tab-pick-icon').style.backgroundImage,
+            }));
+            // 行内 ＋ 已移除：单个与批量都走左边勾选。
+            const quickButtons = document.querySelectorAll('.tab-pick-quick').length;
+            // 此刻一个都没勾，「全选」按钮应显示默认文案。
+            const allLabelIdle = document.getElementById('focusPickerAll').textContent;
+
+            // 勾选两个（不用全选，验证逐项勾选路径），截图后批量加入。
+            const rowOf = (domain) =>
+              [...document.querySelectorAll('.tab-pick-row')].find(
+                (el) => el.querySelector('.tab-pick-name').textContent === domain
+              );
+            for (const domain of ['bilibili.com', 'zhihu.com']) {
+              const box = rowOf(domain).querySelector('.tab-pick-box');
+              box.checked = true;
+              box.dispatchEvent(new Event('change'));
+            }
+            const selectedLabel = document.getElementById('focusPickerCount').textContent;
+            const addLabel = document.getElementById('focusPickerAdd').textContent;
+            const allLabel = document.getElementById('focusPickerAll').textContent;
+
+            const shot = { selectedLabel, addLabel, allLabel };
+
+            document.getElementById('focusPickerAdd').click();
+            await wait(500);
+            const afterBatch = (await getSettings()).focus.sites;
+            const chipsAfterBatch = [...document.querySelectorAll('#focusSites .chip')].map((el) =>
+              el.textContent.replace('✕', '')
+            );
+            const countAfterBatch = document.getElementById('focusPickerCount').textContent;
+            const biliRowAfter = rowOf('bilibili.com');
+
+            // 单个加入：把 github 移出白名单并刷新列表，只勾这一行，
+            // 按钮应变成单数文案「加入 1 个」，点它就是只加这一个。
+            await saveSettings({ focus: { sites: afterBatch.filter((d) => d !== 'github.com') } });
+            await wait(500);
+            document.getElementById('focusPickerRefresh').click();
+            await wait(400);
+            const ghBox = rowOf('github.com').querySelector('.tab-pick-box');
+            ghBox.checked = true;
+            ghBox.dispatchEvent(new Event('change'));
+            const singleLabel = document.getElementById('focusPickerAdd').textContent;
+            document.getElementById('focusPickerAdd').click();
+            await wait(500);
+            const afterSingle = (await getSettings()).focus.sites;
+            const ghRowAfter = rowOf('github.com');
+            const singleFlash = document.getElementById('focusPickerCount').textContent;
+
+            // 收起
+            document.getElementById('focusPickerClose').click();
+            const collapsed = picker.hidden && toggle.getAttribute('aria-expanded') === 'false';
+
+            return {
+              hint,
+              closedBefore,
+              openedAfter,
+              note,
+              headHint,
+              allLabelIdle,
+              rows,
+              quickButtons,
+              shot,
+              afterBatch,
+              chipsAfterBatch,
+              countAfterBatch,
+              batchRowAdded: biliRowAfter.classList.contains('is-added'),
+              singleLabel,
+              afterSingle,
+              singleFlash,
+              singleRowAdded: ghRowAfter.classList.contains('is-added'),
+              collapsed,
+            };
+          } finally {
+            chrome.tabs.query = origQuery;
+          }
+        })()`
+      );
+
+      // 截图要在交互结束后单独跑一次：picker 已被收起，重开一次再截。
+      await evaluate(
+        c,
+        `(async () => {
+          const origQuery = chrome.tabs.query;
+          chrome.tabs.query = async () => [
+            { url: 'https://bilibili.com/video/1' },
+            { url: 'https://github.com/1parado' },
+            { url: 'https://bilibili.com/video/2' },
+            { url: 'https://zhihu.com/hot' },
+            { url: 'https://stackoverflow.com/questions' },
+            { url: 'chrome://extensions/' },
+          ];
+          document.getElementById('focusImportToggle').click();
+          await new Promise((r) => setTimeout(r, 400));
+          // 勾一个「可添加」的行：已在白名单的勾选框是禁用的，别去点它。
+          const target = [...document.querySelectorAll('.tab-pick-row')].find(
+            (el) => !el.querySelector('.tab-pick-box').disabled
+          );
+          const box = target.querySelector('.tab-pick-box');
+          box.checked = true;
+          box.dispatchEvent(new Event('change'));
+          await new Promise((r) => setTimeout(r, 200));
+          chrome.tabs.query = origQuery;
+          return true;
+        })()`
+      );
+      await screenshot(c, 'allowlist.png');
+      return out;
+    }
+  );
+
+  const rowsOk =
+    allowImport.rows.length === 3 &&
+    allowImport.rows[0].domain === 'bilibili.com' &&
+    allowImport.rows[0].meta === '2 个标签页' &&
+    allowImport.rows[0].boxChecked === false &&
+    allowImport.rows[1].domain === 'github.com' &&
+    allowImport.rows[1].added === true &&
+    allowImport.rows[1].boxDisabled === true &&
+    allowImport.rows[1].boxChecked === true &&
+    allowImport.rows[2].domain === 'zhihu.com' &&
+    allowImport.rows[2].added === false;
+  console.log(
+    `标签页选择器 → 内部页/扩展页/本地文件已过滤 ${allowImport.rows.length === 3 ? '✓' : '✗'}、同域合并计数 ${allowImport.rows[0]?.meta === '2 个标签页' ? '✓' : '✗'}、已在白名单的行禁选 ${allowImport.rows[1]?.boxDisabled === true && allowImport.rows[1]?.boxChecked === true ? '✓' : '✗'} ${rowsOk ? '' : '✗ 行数据异常'}`
+  );
+  console.log(
+    `选择器交互 → 展开 ${allowImport.closedBefore === true && allowImport.openedAfter === true ? '✓' : '✗'} / 勾选计数「${allowImport.shot.selectedLabel}」按钮「${allowImport.shot.addLabel}」 / 批量后白名单 [${allowImport.afterBatch.join(', ')}] / 提示「${allowImport.note}」`
+  );
+  const batchOk =
+    allowImport.afterBatch.length === 3 &&
+    allowImport.afterBatch.includes('github.com') &&
+    allowImport.afterBatch.includes('bilibili.com') &&
+    allowImport.afterBatch.includes('zhihu.com') &&
+    allowImport.chipsAfterBatch.length === 3 &&
+    allowImport.batchRowAdded === true &&
+    allowImport.shot.selectedLabel === '已选 2 个' &&
+    allowImport.shot.addLabel === '批量加入 2 个' &&
+    allowImport.countAfterBatch === '已加入 2 个站点';
+  console.log(
+    `一键批量加入 ${batchOk ? '✓' : '✗'}（chips ${allowImport.chipsAfterBatch.length} 个，行转为「已在白名单」，反馈「${allowImport.countAfterBatch}」）`
+  );
+
+  // 单个加入走同一条勾选路径：没有行内 ＋，按钮文案变单数。
+  const singleOk =
+    allowImport.quickButtons === 0 &&
+    allowImport.rows.every((r) => r.hasQuick === false) &&
+    allowImport.singleLabel === '加入 1 个' &&
+    allowImport.singleRowAdded === true &&
+    allowImport.afterSingle.length === 3 &&
+    allowImport.afterSingle.includes('github.com') &&
+    allowImport.collapsed === true;
+  console.log(
+    `单个加入走勾选 ${singleOk ? '✓' : '✗'}（行内 ＋ ${allowImport.quickButtons} 个 / 只勾一行时按钮「${allowImport.singleLabel}」→ 白名单 [${allowImport.afterSingle.join(', ')}] / 反馈「${allowImport.singleFlash}」）／收起按钮 ${allowImport.collapsed ? '✓' : '✗'}`
+  );
+
+  const hintOk = allowImport.hint === '可从打开的网页快速添加白名单';
+  console.log(`开关旁提示 → 「${allowImport.hint}」${hintOk ? '✓' : '✗'}`);
+  console.log(
+    `选择器说明文案已移除 → 头部剩余段落 ${allowImport.headHint ? '1（✗）' : '0 ✓'}、全选按钮 未勾选时「${allowImport.allLabelIdle}」全选后「${allowImport.shot.allLabel}」${allowImport.allLabelIdle === '全选' && allowImport.shot.allLabel === '清空选择' ? '✓' : '✗'}`
   );
 
   console.log('\n全部验证完成，截图位于 verify/ 目录');

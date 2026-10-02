@@ -129,6 +129,19 @@
   letter-spacing: 0.02em;
 }
 
+/* 排行标题行：标题靠左，「按根域名合并」开关靠右 */
+.sites-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.sites-head .section-label {
+  margin: 0;
+}
+
 .site-row {
   display: grid;
   grid-template-columns: 1fr auto;

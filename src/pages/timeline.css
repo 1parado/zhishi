@@ -211,3 +211,19 @@
   font-size: 12px;
   margin: 8px 0 0;
 }
+
+/* 时间轴标题行：左侧标题 + 说明，右侧「按根域名合并」开关 */
+.tl-head-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.tl-head-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}

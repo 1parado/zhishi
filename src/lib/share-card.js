@@ -16,6 +16,7 @@
 
 import {
   dateKey,
+  mergeByRoot,
   shiftDateKey,
   streakDays,
   sumSeconds,
@@ -249,12 +250,17 @@ const STAT_ICONS = {
 
 /* ---------- 统计聚合（导出供测试） ---------- */
 
-/** 今日卡数据：今日总量、昨日总量、今日 Top5、站点数、连续记录、近 7 天序列。 */
-export function dayCardStats(days, todayKey) {
-  const today = days?.[todayKey] || {};
-  const sites = Object.entries(today)
+/** { domain: 秒 } → 去零降序的 [domain, seconds][]；byRoot 时先按根域名合并。 */
+function siteRank(flat, byRoot) {
+  return Object.entries(byRoot ? mergeByRoot(flat) : flat)
     .filter(([, s]) => s > 0)
     .sort((a, b) => b[1] - a[1]);
+}
+
+/** 今日卡数据：今日总量、昨日总量、今日 Top5、站点数、连续记录、近 7 天序列。 */
+export function dayCardStats(days, todayKey, byRoot = false) {
+  const today = days?.[todayKey] || {};
+  const sites = siteRank(today, byRoot);
   const week = weekSeries(days || {}, todayKey, 7);
   return {
     total: sumSeconds(today),
@@ -268,7 +274,7 @@ export function dayCardStats(days, todayKey) {
 }
 
 /** 周报卡数据：近 7 天总量、上个 7 天总量、Top5、站点数、连续记录、最活跃一天。 */
-export function weekCardStats(days, todayKey) {
+export function weekCardStats(days, todayKey, byRoot = false) {
   const week = weekSeries(days || {}, todayKey, 7);
   const perSite = new Map();
   for (const day of week) {
@@ -276,7 +282,7 @@ export function weekCardStats(days, todayKey) {
       perSite.set(domain, (perSite.get(domain) || 0) + seconds);
     }
   }
-  const active = [...perSite.entries()].filter(([, s]) => s > 0).sort((a, b) => b[1] - a[1]);
+  const active = siteRank(Object.fromEntries(perSite), byRoot);
   const peak = week.reduce((m, d) => (d.seconds > (m?.seconds ?? -1) ? d : m), null);
   return {
     total: week.reduce((acc, d) => acc + d.seconds, 0),
@@ -501,9 +507,9 @@ function loadImage(src) {
  * 在传入 canvas 上绘制年度分享卡片并返回 canvas。
  * strings：界面文案（由调用方用 i18n 组装）；P：cardPalette(theme)。
  */
-export function drawShareCard(canvas, days, todayKey, strings, P = PALETTES.light) {
+export function drawShareCard(canvas, days, todayKey, strings, P = PALETTES.light, byRoot = false) {
   const year = todayKey.slice(0, 4);
-  const { perDay, total, activeDays, peak, topSites } = aggregate(days, year);
+  const { perDay, total, activeDays, peak, topSites } = aggregate(days, year, byRoot);
   const dailyAvg = activeDays > 0 ? total / activeDays : 0;
 
   const dpr = 2;
@@ -634,7 +640,7 @@ export function drawShareCard(canvas, days, todayKey, strings, P = PALETTES.ligh
   return canvas;
 }
 
-function aggregate(days, year) {
+function aggregate(days, year, byRoot = false) {
   const perDay = new Map();
   const perSite = new Map();
   for (const [key, sites] of Object.entries(days || {})) {
@@ -650,7 +656,7 @@ function aggregate(days, year) {
   const total = daysArr.reduce((acc, [, s]) => acc + s, 0);
   const activeDays = daysArr.filter(([, s]) => s > 0).length;
   const peak = daysArr.reduce((m, [k, s]) => (s > (m?.[1] ?? -1) ? [k, s] : m), null);
-  const topSites = [...perSite.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const topSites = siteRank(Object.fromEntries(perSite), byRoot).slice(0, 5);
   return { perDay: daysArr, total, activeDays, peak, topSites };
 }
 
@@ -691,9 +697,9 @@ const T_FOOT_Y = 1360;
  * 在传入 canvas 上绘制日报（range='day'）或周报卡（range='week'）。
  * profile：{ name, avatar, show }（settings.profile），无昵称无头像时省略用户区。
  */
-export async function drawTrendCard(canvas, { days, todayKey, range, strings, profile = null, theme = 'light' }) {
+export async function drawTrendCard(canvas, { days, todayKey, range, strings, profile = null, theme = 'light', byRoot = false }) {
   const isWeek = range === 'week';
-  const stats = isWeek ? weekCardStats(days, todayKey) : dayCardStats(days, todayKey);
+  const stats = isWeek ? weekCardStats(days, todayKey, byRoot) : dayCardStats(days, todayKey, byRoot);
   const hour = strings.hourShort;
   const P = cardPalette(theme);
 
@@ -830,12 +836,13 @@ export async function renderShareCardDataURL({
   strings,
   profile = null,
   theme = 'light',
+  byRoot = false,
 }) {
   const canvas = document.createElement('canvas');
   if (range === 'day' || range === 'week') {
-    await drawTrendCard(canvas, { days, todayKey, range, strings, profile, theme });
+    await drawTrendCard(canvas, { days, todayKey, range, strings, profile, theme, byRoot });
   } else {
-    drawShareCard(canvas, days, todayKey, strings, cardPalette(theme));
+    drawShareCard(canvas, days, todayKey, strings, cardPalette(theme), byRoot);
   }
   return canvas.toDataURL('image/png');
 }

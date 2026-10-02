@@ -17,6 +17,9 @@ export const DEFAULT_SETTINGS = {
   topSitesRange: 'week',
   // 网站排行维度：time 按使用时长 / visits 按访问次数。
   topSitesMetric: 'time',
+  // 站点统计是否按根域名合并（linux.do + cdk.linux.do → linux.do）。
+  // 只影响展示层的聚合方式：时长与次数始终按完整域名记录，关掉即看明细。
+  mergeByRoot: true,
   // 时间线页时间轴图例默认只显示 Top 6 站点，展开后记住偏好。
   tlLegendExpanded: false,
   // 网站图标：优先显示网站自己的 favicon（地址由浏览器访问时给出，本扩展
@@ -128,6 +131,7 @@ function normalize(raw) {
   if (!['bar', 'line', 'pie'].includes(merged.weekChart)) merged.weekChart = 'bar';
   if (!['day', 'week'].includes(merged.topSitesRange)) merged.topSitesRange = 'week';
   if (!['time', 'visits'].includes(merged.topSitesMetric)) merged.topSitesMetric = 'time';
+  merged.mergeByRoot = merged.mergeByRoot !== false;
   merged.tlLegendExpanded = merged.tlLegendExpanded === true;
   merged.realFavicon = merged.realFavicon !== false;
   if (!['zh', 'en'].includes(merged.locale)) merged.locale = 'auto';

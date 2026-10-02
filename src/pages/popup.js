@@ -1,4 +1,4 @@
-import { classifyUrl, dateKey, goalVariant, siteUrl, sortRank, sumSeconds } from '../lib/pure.js';
+import { classifyUrl, dateKey, goalVariant, mergeByRoot, rootDomain, siteUrl, sortRank, sumSeconds } from '../lib/pure.js';
 import { openSiteTab } from '../lib/site-link.js';
 import { getSettings, saveSettings } from '../lib/settings.js';
 import { applyI18n, fmtDuration, fmtDurationCompact, initI18n, refreshLocale, t } from '../lib/i18n.js';
@@ -15,8 +15,10 @@ let cachedSession = null;
 let cachedToday = null;
 let cachedTodayTotal = 0;
 let liveTimer = null;
-// 排行列表里当前站点那一行的时间元素，随会话实时推进。
+// 排行列表里当前站点那一行的时间元素，随会话实时推进；
+// liveSiteBase 是渲染那一刻该行的已落盘值（合并模式下就是根域名的合计）。
 let liveSiteTimeEl = null;
+let liveSiteBase = 0;
 
 async function render() {
   await initI18n();
@@ -36,7 +38,7 @@ async function render() {
   cachedTodayTotal = sumSeconds(today);
   renderStatus(session, today, tabs[0]);
   renderToday(today, settings);
-  renderSites(today, visits, session, settings.topSitesMetric);
+  renderSites(today, visits, session, settings.topSitesMetric, settings.mergeByRoot);
   renderSwitches(settings);
   applyTheme(settings.theme);
   renderThemeSwitch(settings.theme);
@@ -70,7 +72,7 @@ function startTicker() {
 
     const liveSite = (cachedToday[session.domain] || 0) + elapsed;
     $('status').textContent = t('statusRecording', { domain: session.domain, time: fmtDuration(liveSite) });
-    if (liveSiteTimeEl) liveSiteTimeEl.textContent = fmtDuration(liveSite);
+    if (liveSiteTimeEl) liveSiteTimeEl.textContent = fmtDuration(liveSiteBase + elapsed);
 
     const liveTotal = fmtDuration(cachedTodayTotal + elapsed);
     // 环内用紧凑格式（不换行不出环），下方纯文本模式用完整格式。
@@ -102,15 +104,19 @@ function renderToday(today, settings) {
   $('todayTotalPlain').textContent = fmtDuration(total);
 }
 
-function renderSites(today, visits, session, metric) {
+function renderSites(today, visits, session, metric, byRoot) {
   const list = $('siteList');
   list.textContent = '';
   liveSiteTimeEl = null;
+  liveSiteBase = 0;
+  // 开关状态跟着渲染走，避免与设置不同步。
+  $('siteMerge').setAttribute('aria-checked', String(byRoot !== false));
 
   // popup 只看今天，且只显示当前排序维度：时长与次数都在后台记录，
-  // 但一次只读所选的那张表。
+  // 但一次只读所选的那张表。按根域名合并只在展示层做，记录层仍是完整域名。
   const byVisits = metric === 'visits';
-  const entries = sortRank(byVisits ? visits : today).slice(0, 5);
+  const flat = byVisits ? visits : today;
+  const entries = sortRank(byRoot ? mergeByRoot(flat) : flat).slice(0, 5);
 
   if (!entries.length) {
     const empty = document.createElement('p');
@@ -147,8 +153,11 @@ function renderSites(today, visits, session, metric) {
     time.textContent = byVisits ? t('visitTimes', { n: value }) : fmtDuration(value);
 
     // 时长才随时间增长，所以只有按时长排时才挂实时秒表（已落盘 + 未落盘会话）。
-    if (!byVisits && session?.domain === domain) {
+    // 合并模式下当前记录的可能是子域（cdk.linux.do），先折成同一口径再比对。
+    const liveKey = byRoot ? rootDomain(session?.domain) : session?.domain;
+    if (!byVisits && liveKey === domain) {
       liveSiteTimeEl = time;
+      liveSiteBase = value;
       time.textContent = fmtDuration(value + (Date.now() - session.startedAt) / 1000);
     }
 
@@ -198,6 +207,12 @@ function bindSwitches() {
     await saveSettings({ focus: { enabled: !(settings.focus?.enabled === true) } });
     // 开关后立即重估当前标签页：白名单外站点马上跳拦截页 / 关闭后马上放行。
     chrome.runtime.sendMessage({ type: 'zhishi-popup-opened' }).catch(() => {});
+  });
+
+  // 排行「按根域名合并」：只改展示层聚合，记录层始终是完整域名。
+  $('siteMerge').addEventListener('click', async () => {
+    const settings = await getSettings();
+    await saveSettings({ mergeByRoot: !(settings.mergeByRoot !== false) });
   });
 
   // 必须用 tabs.create 开新标签页：普通链接会把 popup 自身导航走，

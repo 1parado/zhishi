@@ -308,6 +308,21 @@ button {
   cursor: not-allowed;
 }
 
+/* 「按根域名合并」这类挂在卡片标题右侧的小开关：整块可点，点文字也能切换 */
+.merge-toggle {
+  display: inline-flex;
+  align-items: center;
+  align-self: center;
+  gap: 8px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.merge-toggle > span {
+  font-size: 12px;
+  white-space: nowrap;
+}
+
 /* ---------- 输入 ---------- */
 
 .input,
