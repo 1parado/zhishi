@@ -1,5 +1,7 @@
 verify/
 
-verify-run.log
+verify*.log
+
+dist/
 
 .workbuddy/

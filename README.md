@@ -56,6 +56,8 @@
 3. 点「加载已解压的扩展程序」，选择本目录（`browser-extension`）
 4. 固定到工具栏即可使用
 
+需要打包上架 Chrome 应用商店？见 [PUBLISHING.md](PUBLISHING.md)。
+
 ---
 
 学AI，上[L站](https://linux.do/)
