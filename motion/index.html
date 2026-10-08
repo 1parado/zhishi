@@ -67,7 +67,13 @@ body{
   pointer-events:none;z-index:3;
 }
 .hero::after{content:"";position:absolute;inset:-1px;border-radius:inherit;pointer-events:none;box-shadow:0 0 0 1px rgba(15,23,42,.025);z-index:4}
-.content{position:absolute;inset:0}
+.content{
+  position:absolute;inset:0;
+  transform-origin:center;
+  opacity:1;
+  will-change:transform,opacity,filter;
+}
+
 .panel-head{display:flex;align-items:center;justify-content:space-between;padding:20px 20px 12px}
 .brand{font-size:16px;font-weight:650}
 .mini{font-size:11px;color:var(--muted)}
@@ -76,7 +82,14 @@ body{
 .ring circle{fill:none}
 .ring-track{stroke:#eef2f7;stroke-width:8}
 .ring-value{stroke:var(--blue);stroke-width:8;stroke-linecap:round}
-.timer-copy{position:absolute;display:grid;place-items:center;gap:2px}
+.timer-copy{
+  position:absolute;
+  left:50%;top:50%;
+  transform:translate(-50%,-50%);
+  display:grid;place-items:center;gap:2px;
+  white-space:nowrap;
+  text-align:center;
+}
 .timer-value{font-size:23px;font-weight:650;font-variant-numeric:tabular-nums}
 .timer-label{font-size:10px;color:var(--muted)}
 .sites{padding:6px 20px 20px}
@@ -93,7 +106,8 @@ body{
 .switch{width:44px;height:24px;border-radius:999px;background:#e2e8f0;position:relative}
 .switch i{position:absolute;width:20px;height:20px;top:2px;left:2px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.18)}
 .switch.on{background:var(--primary)}.switch.on i{transform:translateX(20px)}
-.segmented{display:flex;gap:2px;padding:2px;border-radius:8px;background:#f1f5f9}
+.segmented{display:flex;gap:2px;padding:3px;border-radius:9px;background:#f1f5f9}
+.seg-wrap{padding:22px}.seg-wrap .mini{margin-bottom:10px}
 .seg{font-size:11px;padding:5px 10px;border-radius:6px;color:#64748b}.seg.active{background:#fff;color:#111827;box-shadow:0 1px 2px rgba(0,0,0,.06)}
 .chart{position:absolute;inset:62px 20px 18px;display:flex;align-items:end;gap:14px}
 .bar{flex:1;max-width:48px;background:#2563eb;border-radius:5px 5px 3px 3px;box-shadow:0 2px 5px rgba(37,99,235,.18)}
@@ -148,7 +162,7 @@ const states=[
  {name:'Timer',w:260,h:260,r:130,x:720,y:720,bg:'#ffffff',html:'timer'},
  {name:'Sites',w:560,h:330,r:16,x:720,y:720,bg:'#ffffff',html:'sites'},
  {name:'Toggle',w:330,h:92,r:46,x:720,y:720,bg:'#ffffff',html:'toggle'},
- {name:'Segmented',w:330,h:58,r:29,x:720,y:720,bg:'#ffffff',html:'seg'},
+ {name:'Segmented',w:350,h:96,r:24,x:720,y:720,bg:'#ffffff',html:'seg'},
  {name:'Chart',w:580,h:330,r:18,x:720,y:720,bg:'#ffffff',html:'chart'},
  {name:'Stat',w:420,h:230,r:18,x:720,y:720,bg:'#ffffff',html:'stat'},
  {name:'Heatmap',w:430,h:250,r:18,x:720,y:720,bg:'#ffffff',html:'heat'},
@@ -201,7 +215,7 @@ function render(type,t){
  if(type==='timer')return ring+'<div class="timer-copy"><div class="timer-value">41:35</div><div class="timer-label">今日使用</div></div>';
  if(type==='sites')return '<div class="sites"><div class="section"><span class="section-title">网站排行</span><span class="mini">按根域名合并</span></div><div class="rows"><div class="row"><span class="rank">01</span><span class="domain">bilibili.com</span><span class="time">27m 18s</span></div><div class="row"><span class="rank">02</span><span class="domain">github.com</span><span class="time">18m 42s</span></div><div class="row"><span class="rank">03</span><span class="domain">linux.do</span><span class="time">12m 07s</span></div><div class="row"><span class="rank">04</span><span class="domain">google.com</span><span class="time">08m 31s</span></div></div></div>';
  if(type==='toggle')return '<div class="switches"><div class="switch-row"><div class="switch-label"><span class="switch-title">护眼提醒</span><span class="switch-sub">每 20 分钟望向远处</span></div><div class="switch on"><i></i></div></div></div>';
- if(type==='seg')return '<div style="padding:18px"><div class="mini" style="margin-bottom:10px">图表形式</div><div class="segmented"><span class="seg active">柱状</span><span class="seg">折线</span><span class="seg">饼状</span></div></div>';
+ if(type==='seg')return '<div class="seg-wrap"><div class="mini">图表形式</div><div class="segmented"><span class="seg active">柱状</span><span class="seg">折线</span><span class="seg">饼状</span></div></div>';
  if(type==='chart')return '<div style="padding:20px"><div class="section"><span class="section-title">近 7 天</span><span class="mini">使用时长</span></div><div class="chart"><i class="bar" style="height:34%"></i><i class="bar" style="height:58%"></i><i class="bar" style="height:45%"></i><i class="bar" style="height:78%"></i><i class="bar" style="height:52%"></i><i class="bar" style="height:91%"></i><i class="bar" style="height:67%"></i></div></div>';
  if(type==='stat')return '<div class="stat"><div class="stat-label">今日使用</div><div class="stat-num">2h 41m</div><div class="stat-foot">↓ 比昨天少 18%</div></div>';
  if(type==='heat'){let cells='';for(let i=0;i<70;i++){let n=(i*7+3)%13;cells+='<i class="cell '+(n>10?'l4':n>8?'l3':n>5?'l2':n>2?'l1':'')+'"></i>'}return '<div class="heat"><div class="heat-title">年度热力图</div><div class="cells">'+cells+'</div><div class="mini">绿 ≤ 1h · 黄 ≤ 3h · 橙 ≤ 6h · 红 ＞ 6h</div></div>'}
@@ -225,14 +239,21 @@ function seek(t){
  let activeBeat=0;
  for(const e of events){if(e.state===i && e.beat*BEAT<=t)activeBeat=e.beat*BEAT;else if(e.beat*BEAT>t)break}
  const local=t-activeBeat;
- const entering=t>0 && local>=0 && local<.16;
- const blur=entering ? Math.max(0,(.16-local)/.16) : 0;
- content.style.filter='blur('+(blur*2.8)+'px)';
- content.style.opacity='1';
- if(content.dataset.type!==s.html){content.innerHTML=render(s.html,t);content.dataset.type=s.html}
+ const morphWindow=.52;
+ const settled=Math.min(1,Math.max(0,(local-morphWindow*.48)/(morphWindow*.52)));
+ const contentVisible=t===0 ? 1 : settled;
+ const contentScale=.94 + .06*settled;
+ const blur=Math.max(0,1-settled)*2.6;
+ content.style.filter='blur('+blur+'px)';
+ content.style.opacity=contentVisible.toFixed(3);
+ content.style.transform='scale('+contentScale.toFixed(4)+')';
+ if(content.dataset.type!==s.html){
+   content.innerHTML=render(s.html,t);
+   content.dataset.type=s.html;
+ }
  const [cx,cy]=cursorAt(t);cursor.style.left=cx+'px';cursor.style.top=cy+'px';
  const clickPhase=(t/BEAT)%2;click.style.left=(cx-3)+'px';click.style.top=(cy-3)+'px';click.style.opacity=clickPhase<.12?String(1-clickPhase/.12):'0';
- const camera=Math.min(1.055,Math.max(.86,760/Math.max(w,h)));
+ const camera=Math.min(1.035,Math.max(.92,760/Math.max(w,h)));
  const fit=Math.min((window.innerWidth-96)/1440,(window.innerHeight-150)/1440);
  viewport.style.transform='scale('+(Math.max(.48,fit)*camera)+')';
  const pct=t/DURATION*100;progress.style.width=pct+'%';knob.style.left=pct+'%';
