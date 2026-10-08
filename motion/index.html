@@ -25,12 +25,22 @@ body{
   font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;
   -webkit-font-smoothing:antialiased;
 }
+.stage::before{
+  content:"";position:absolute;inset:9%;border:1px solid rgba(15,23,42,.035);
+  border-radius:32px;pointer-events:none;
+}
+.stage::after{
+  content:"";position:absolute;width:560px;height:560px;left:50%;top:46%;
+  transform:translate(-50%,-50%);border-radius:50%;
+  background:rgba(255,255,255,.48);filter:blur(70px);pointer-events:none;
+}
+
 .stage{position:relative;width:100vw;height:100vh;display:grid;place-items:center;overflow:hidden}
 .grid{
-  position:absolute;inset:0;opacity:.32;
-  background-image:linear-gradient(rgba(15,23,42,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(15,23,42,.035) 1px,transparent 1px);
-  background-size:48px 48px;
-  mask-image:linear-gradient(to bottom,transparent,#000 18%,#000 82%,transparent);
+  position:absolute;inset:0;opacity:.28;
+  background-image:linear-gradient(rgba(15,23,42,.028) 1px,transparent 1px),linear-gradient(90deg,rgba(15,23,42,.028) 1px,transparent 1px);
+  background-size:56px 56px;
+  mask-image:linear-gradient(to bottom,transparent,#000 20%,#000 80%,transparent);
 }
 .title{
   position:absolute;top:34px;left:42px;z-index:20;
@@ -42,15 +52,21 @@ body{
   padding:7px 10px;border:1px solid var(--border);border-radius:999px;
   background:rgba(255,255,255,.72);font-size:11px;color:#64748b;
 }
-.viewport{position:absolute;width:1440px;height:1440px;transform-origin:center;will-change:transform}
+.viewport{position:absolute;width:1440px;height:1440px;transform-origin:center;will-change:transform;contain:layout style paint}
 .hero{
   position:absolute;left:720px;top:720px;
   width:420px;height:300px;border-radius:16px;
   transform:translate(-50%,-50%);
   background:var(--surface);border:1px solid var(--border);
-  box-shadow:var(--shadow);overflow:hidden;
+  box-shadow:0 30px 90px rgba(15,23,42,.13),0 8px 24px rgba(15,23,42,.07),0 1px 2px rgba(15,23,42,.06);
+  overflow:hidden;
 }
-.hero::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;box-shadow:inset 0 1px rgba(255,255,255,.75)}
+.hero::before{
+  content:"";position:absolute;inset:0;border-radius:inherit;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.65),inset 0 1px 0 rgba(255,255,255,.9);
+  pointer-events:none;z-index:3;
+}
+.hero::after{content:"";position:absolute;inset:-1px;border-radius:inherit;pointer-events:none;box-shadow:0 0 0 1px rgba(15,23,42,.025);z-index:4}
 .content{position:absolute;inset:0}
 .panel-head{display:flex;align-items:center;justify-content:space-between;padding:20px 20px 12px}
 .brand{font-size:16px;font-weight:650}
@@ -80,7 +96,7 @@ body{
 .segmented{display:flex;gap:2px;padding:2px;border-radius:8px;background:#f1f5f9}
 .seg{font-size:11px;padding:5px 10px;border-radius:6px;color:#64748b}.seg.active{background:#fff;color:#111827;box-shadow:0 1px 2px rgba(0,0,0,.06)}
 .chart{position:absolute;inset:62px 20px 18px;display:flex;align-items:end;gap:14px}
-.bar{flex:1;max-width:48px;background:linear-gradient(#4f8cf7,#2563eb);border-radius:5px 5px 3px 3px}
+.bar{flex:1;max-width:48px;background:#2563eb;border-radius:5px 5px 3px 3px;box-shadow:0 2px 5px rgba(37,99,235,.18)}
 .stat{padding:22px}.stat-label{font-size:12px;color:var(--muted)}.stat-num{font-size:38px;font-weight:650;margin-top:4px;letter-spacing:-.03em}.stat-foot{font-size:11px;color:var(--green);margin-top:8px}
 .heat{padding:24px;display:grid;gap:18px}.heat-title{font-size:13px;font-weight:600}.cells{display:grid;grid-template-columns:repeat(14,12px);grid-auto-rows:12px;gap:4px}.cell{border-radius:3px;background:#f1f5f9}.cell.l1{background:#86efac}.cell.l2{background:#facc15}.cell.l3{background:#fb923c}.cell.l4{background:#ef4444}
 .limit{padding:22px;display:grid;gap:18px}.limit-head{display:flex;justify-content:space-between;align-items:start}.limit-domain{font-size:15px;font-weight:600}.limit-desc{font-size:11px;color:var(--muted);margin-top:3px}.limit-progress{height:6px;background:#eef2f7;border-radius:999px;overflow:hidden}.limit-progress i{display:block;height:100%;width:74%;background:var(--blue);border-radius:inherit}.limit-meta{display:flex;justify-content:space-between;font-size:11px;color:var(--muted)}
@@ -159,16 +175,8 @@ function response(dt,w=13,z=.78){
  return 1-Math.exp(-z*w*dt)*(Math.cos(wd*dt)+(z*w/wd)*Math.sin(wd*dt));
 }
 function springProp(t,key,def){
- let value=def, lastBeat=0;
- for(const e of events){
-   if(e.beat*BEAT>t)break;
-   const target=states[e.state][key];
-   const delta=target-value;
-   value+=delta;
-   lastBeat=e.beat*BEAT;
- }
- // Sum step responses from target changes.
- value=def;
+ // Pure closed-form response: every target change contributes one independent step.
+ let value=def;
  let previous=def;
  for(const e of events){
    const ti=e.beat*BEAT;
@@ -214,7 +222,9 @@ function seek(t){
  const x=springProp(t,'x',states[0].x), y=springProp(t,'y',states[0].y);
  hero.style.width=w+'px';hero.style.height=h+'px';hero.style.borderRadius=Math.max(0,r)+'px';
  hero.style.left=x+'px';hero.style.top=y+'px';hero.style.background=s.bg;
- const local=t-(events.findLast?.(e=>e.state===i)?.beat*BEAT||0);
+ let activeBeat=0;
+ for(const e of events){if(e.state===i && e.beat*BEAT<=t)activeBeat=e.beat*BEAT;else if(e.beat*BEAT>t)break}
+ const local=t-activeBeat;
  const entering=t>0 && local>=0 && local<.16;
  const blur=entering ? Math.max(0,(.16-local)/.16) : 0;
  content.style.filter='blur('+(blur*2.8)+'px)';
@@ -222,8 +232,9 @@ function seek(t){
  if(content.dataset.type!==s.html){content.innerHTML=render(s.html,t);content.dataset.type=s.html}
  const [cx,cy]=cursorAt(t);cursor.style.left=cx+'px';cursor.style.top=cy+'px';
  const clickPhase=(t/BEAT)%2;click.style.left=(cx-3)+'px';click.style.top=(cy-3)+'px';click.style.opacity=clickPhase<.12?String(1-clickPhase/.12):'0';
- const zoom=Math.min(1.04,Math.max(.82,760/Math.max(w,h)));
- viewport.style.transform='scale('+zoom+')';
+ const camera=Math.min(1.055,Math.max(.86,760/Math.max(w,h)));
+ const fit=Math.min((window.innerWidth-96)/1440,(window.innerHeight-150)/1440);
+ viewport.style.transform='scale('+(Math.max(.48,fit)*camera)+')';
  const pct=t/DURATION*100;progress.style.width=pct+'%';knob.style.left=pct+'%';
  timeEl.textContent='00:'+(t<10?'0':'')+t.toFixed(1);
 }
@@ -232,6 +243,7 @@ function frame(now){if(!playing)return;offset=(now-start)/1000;if(offset>DURATIO
 function toggle(){playing=!playing;if(playing){start=performance.now()-offset*1000;play.textContent='Ⅱ';raf=requestAnimationFrame(frame)}else{cancelAnimationFrame(raf);play.textContent='▶'}}
 play.onclick=toggle;
 track.addEventListener('pointerdown',e=>{const move=ev=>{const r=track.getBoundingClientRect();offset=Math.max(0,Math.min(1,(ev.clientX-r.left)/r.width))*DURATION;seek(offset)};move(e);track.setPointerCapture?.(e.pointerId);track.addEventListener('pointermove',move);track.addEventListener('pointerup',()=>track.removeEventListener('pointermove',move),{once:true})});
+window.addEventListener('resize',()=>seek(offset));
 window.addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();toggle()}});
 seek(0);
 </script>
