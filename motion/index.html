@@ -77,8 +77,8 @@ body{
 .timer{position:absolute;inset:65px 0 auto;display:grid;place-items:center}
 .ring{width:156px;height:156px;transform:rotate(-90deg)}
 .ring circle{fill:none}
-.ring-track{stroke:#eef2f7;stroke-width:8}
-.ring-value{stroke:var(--blue);stroke-width:8;stroke-linecap:round}
+.ring-track{stroke:#e3e8ef;stroke-width:8}
+.ring-value{stroke:#4f83ee;stroke-width:8;stroke-linecap:round}
 .timer-copy{
   position:absolute;
   left:50%;top:50%;
@@ -238,9 +238,9 @@ function seek(t){
  const local=t-activeBeat;
  const morphWindow=.28;
  const settled=Math.min(1,Math.max(0,(local-.10)/.18));
- const contentVisible=t===0 ? 1 : settled;
- const contentScale=.985 + .015*settled;
- const blur=Math.max(0,1-settled)*.9;
+ const contentVisible=t===0 ? 1 : (.82 + .18*settled);
+ const contentScale=.992 + .008*settled;
+ const blur=Math.max(0,1-settled)*.35;
  content.style.filter='blur('+blur.toFixed(2)+'px)';
  content.style.opacity=contentVisible.toFixed(3);
  content.style.transform='scale('+contentScale.toFixed(4)+')';
