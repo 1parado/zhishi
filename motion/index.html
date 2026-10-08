@@ -110,10 +110,22 @@ function seek(t){
  const s=states[stateAt(t)];
  hero.style.width=prop(t,'w',states[0].w)+'px';hero.style.height=prop(t,'h',states[0].h)+'px';hero.style.borderRadius=prop(t,'r',states[0].r)+'px';
  let active=0;for(const e of events){if(e.beat*BEAT<=t)active=e.beat*BEAT;else break}
- const local=t-active,swap=Math.min(1,Math.max(0,(local-.08)/.16));
- content.style.opacity=local<.08?1:Math.max(.88,swap);
+ const local=t-active;
+ // Content is deliberately decoupled from geometry: exit -> pure morph -> enter.
+ const exit=Math.min(1,Math.max(0,local/.10));
+ const enter=Math.min(1,Math.max(0,(local-.34)/.12));
+ if(local<.10){
+   content.style.opacity=(1-exit).toFixed(3);
+ }else if(local<.34){
+   content.style.opacity='0';
+ }else{
+   if(content.dataset.type!==s.type){
+     content.innerHTML=render(s.type);
+     content.dataset.type=s.type;
+   }
+   content.style.opacity=(.78+.22*enter).toFixed(3);
+ }
  content.style.filter='none';
- if(content.dataset.type!==s.type){content.innerHTML=render(s.type);content.dataset.type=s.type}
  const [cx,cy]=cursorAt(t);cursor.style.left=cx+'px';cursor.style.top=cy+'px';
  const phase=(t/BEAT)%2;click.style.left=(cx-2)+'px';click.style.top=(cy-2)+'px';click.style.opacity=phase<.10?String(1-phase/.10):'0';
  const pct=t/DURATION*100;progress.style.width=pct+'%';knob.style.left=pct+'%';timeEl.textContent='00:'+(t<10?'0':'')+t.toFixed(1);
