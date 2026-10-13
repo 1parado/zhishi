@@ -28,7 +28,18 @@ import { siteIconUrl, setFavicons } from '../lib/site-icons.js';
 import { loadFaviconMap } from '../lib/favicon.js';
 import { openSiteTab } from '../lib/site-link.js';
 import { listOpenTabs } from '../lib/open-tabs.js';
+import { renderMarkdown } from '../lib/markdown.js';
 import { clearAllData, getAllDays, getAllVisits } from '../background/store.js';
+import {
+  AGENT_TOOLS,
+  buildUsageContext,
+  buildSystemPrompt,
+  checkConnection,
+  chatStream,
+  executeAction,
+  formatToolCallDescription,
+  listModels,
+} from '../lib/agent.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -74,6 +85,9 @@ function renderActiveTab() {
       break;
     case 'settings':
       renderSettings(latestSettings);
+      break;
+    case 'agent':
+      renderAgent(latestSettings);
       break;
   }
 }
@@ -1593,6 +1607,341 @@ if (deepLink.get('add')) {
     $('limitMinutes').focus();
     $('limitMinutes').select();
   }
+}
+
+/* ---------- AI 助手 ---------- */
+
+// 对话历史（模块级，刷新页面后重置；切 Tab 不丢失）。
+let agentMessages = [];
+let agentStreaming = false;
+// 连接成功后暂存 endpoint，等用户选完模型再写入设置。
+let agentPendingEndpoint = '';
+
+// 事件监听一次性绑定
+{
+  const connectBtn = $('agentConnectBtn');
+  if (connectBtn) connectBtn.addEventListener('click', agentConnect);
+
+  const enterBtn = $('agentEnterBtn');
+  if (enterBtn) enterBtn.addEventListener('click', agentEnter);
+
+  const sendBtn = $('agentSendBtn');
+  if (sendBtn) sendBtn.addEventListener('click', agentSend);
+
+  const input = $('agentInput');
+  if (input) {
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        agentSend();
+      }
+    });
+  }
+
+  const clearBtn = $('agentClearBtn');
+  if (clearBtn) clearBtn.addEventListener('click', () => {
+    agentMessages = [];
+    $('agentChat').textContent = '';
+  });
+
+  const disconnectBtn = $('agentDisconnectBtn');
+  if (disconnectBtn) disconnectBtn.addEventListener('click', async () => {
+    agentMessages = [];
+    $('agentChat').textContent = '';
+    await saveSettings({ agent: { enabled: false } });
+  });
+
+  // 建议提问 chips：点击即自动发送
+  for (const chip of document.querySelectorAll('#agentSuggestRow .chip')) {
+    chip.addEventListener('click', () => {
+      if (agentStreaming) return;
+      $('agentInput').value = chip.textContent.trim();
+      agentSend();
+    });
+  }
+}
+
+/** 当前语言（从设置推导，auto 时跟随浏览器）。 */
+function agentLocale() {
+  const l = latestSettings?.locale;
+  if (l === 'zh' || l === 'en') return l;
+  return (navigator.language || 'zh').startsWith('zh') ? 'zh' : 'en';
+}
+
+function renderAgent(settings) {
+  const connected = settings.agent?.enabled && settings.agent?.model;
+  $('agentSetupCard').hidden = !!connected;
+  $('agentChatCard').hidden = !connected;
+  $('agentSuggestRow').hidden = !connected;
+  $('agentInputRow').hidden = !connected;
+  $('agentModelSelectWrap').hidden = true;
+  if (connected) {
+    $('agentModelLabel').textContent = `${t('agentConnected')} · ${settings.agent.model}`;
+    $('agentStatusDot').classList.remove('offline');
+  } else if (settings.agent?.endpoint) {
+    $('agentEndpointInput').value = settings.agent.endpoint;
+  }
+}
+
+/** 连接 Ollama：请求权限 → 健康检查 → 列模型 → 保存设置。 */
+async function agentConnect() {
+  const endpoint = ($('agentEndpointInput').value || '').trim() || 'http://localhost:11434';
+  const statusEl = $('agentSetupStatus');
+  const btn = $('agentConnectBtn');
+  btn.disabled = true;
+  statusEl.hidden = false;
+  statusEl.textContent = t('agentConnecting');
+  statusEl.classList.remove('error');
+
+  try {
+    const url = new URL(endpoint);
+    const origin = `${url.protocol}//${url.host}/*`;
+    const granted = await chrome.permissions.request({ origins: [origin] });
+    if (!granted) {
+      statusEl.textContent = t('agentDisconnected');
+      statusEl.classList.add('error');
+      return;
+    }
+
+    const ok = await checkConnection(endpoint);
+    if (!ok) {
+      statusEl.textContent = t('agentNoConnection');
+      statusEl.classList.add('error');
+      return;
+    }
+
+    const models = await listModels(endpoint);
+    if (!models.length) {
+      statusEl.textContent = t('agentNoModels');
+      statusEl.classList.add('error');
+      return;
+    }
+
+    // 填充模型下拉，由用户选择后点「开始使用」再保存
+    agentPendingEndpoint = endpoint;
+    const select = $('agentModelSelect');
+    select.textContent = '';
+    for (const name of models) {
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name;
+      select.appendChild(opt);
+    }
+    $('agentModelSelectWrap').hidden = false;
+    statusEl.hidden = true;
+  } catch (err) {
+    statusEl.textContent = err.message;
+    statusEl.classList.add('error');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+/** 用户选好模型后点「开始使用」：保存设置，进入聊天态。 */
+async function agentEnter() {
+  const model = $('agentModelSelect').value;
+  if (!model || !agentPendingEndpoint) return;
+  await saveSettings({ agent: { enabled: true, endpoint: agentPendingEndpoint, model } });
+  agentPendingEndpoint = '';
+  // storage.onChanged → render → renderAgent 自动切换到聊天态
+}
+
+/** 用户发送一条消息。 */
+async function agentSend() {
+  if (agentStreaming) return;
+  const inputEl = $('agentInput');
+  const text = inputEl.value.trim();
+  if (!text) return;
+
+  agentMessages.push({ role: 'user', content: text });
+  appendAgentMessageDOM('user', text);
+  inputEl.value = '';
+  await callAgent();
+}
+
+/**
+ * 核心调用：构建上下文+系统提示词 → 流式请求 Ollama → 渲染响应。
+ * 如果模型返回 tool_calls，逐个展示确认卡片，执行后再次调用模型获取最终回复。
+ */
+async function callAgent() {
+  if (!latestSettings?.agent?.enabled) return;
+  const { endpoint, model } = latestSettings.agent;
+
+  const context = buildUsageContext(latestDays || {}, latestVisits || {}, latestSettings, agentLocale());
+  const systemPrompt = buildSystemPrompt(context, agentLocale());
+  const messages = [{ role: 'system', content: systemPrompt }, ...agentMessages];
+
+  agentStreaming = true;
+  updateAgentInputState();
+  let thinkingEl = appendThinkingIndicator();
+  let bubbleEl = null;
+  let assistantContent = '';
+
+  try {
+    const result = await chatStream(endpoint, model, messages, AGENT_TOOLS, (chunk) => {
+      if (chunk.type === 'text') {
+        if (!bubbleEl) {
+          thinkingEl?.remove();
+          thinkingEl = null;
+          bubbleEl = appendAgentBubble('');
+        }
+        assistantContent += chunk.content;
+        bubbleEl.innerHTML = renderMarkdown(assistantContent);
+        scrollAgentChat();
+      }
+    });
+
+    if (thinkingEl) thinkingEl.remove();
+
+    const assistantMsg = { role: 'assistant', content: result.content };
+    if (result.toolCalls.length) assistantMsg.tool_calls = result.toolCalls;
+    agentMessages.push(assistantMsg);
+
+    if (result.toolCalls.length) {
+      for (const tc of result.toolCalls) {
+        await handleToolCall(tc);
+      }
+      // 执行完动作后让模型给出最终回复
+      await callAgent();
+    }
+  } catch (err) {
+    if (thinkingEl) thinkingEl.remove();
+    appendAgentMessageDOM('assistant', `⚠️ ${err.message}`);
+  } finally {
+    agentStreaming = false;
+    updateAgentInputState();
+  }
+}
+
+/** 展示动作确认卡片，等待用户确认或取消后执行。 */
+async function handleToolCall(toolCall) {
+  const desc = formatToolCallDescription(toolCall, agentLocale());
+  const cardEl = appendActionCard(desc);
+  const confirmed = await waitForConfirmation(cardEl);
+
+  let result;
+  if (confirmed) {
+    result = await executeAction(toolCall, latestSettings);
+  } else {
+    result = { ok: false, message: t('agentCancelAction') };
+  }
+
+  updateActionCardResult(cardEl, result, confirmed);
+  agentMessages.push({ role: 'tool', content: result.message });
+}
+
+// ---- DOM 辅助 ----
+
+function appendAgentMessageDOM(role, content) {
+  const chat = $('agentChat');
+  const wrap = document.createElement('div');
+  wrap.className = `agent-msg agent-msg-${role}`;
+  const bubble = document.createElement('div');
+  bubble.className = 'agent-msg-bubble';
+  if (role === 'assistant') {
+    bubble.innerHTML = renderMarkdown(content);
+  } else {
+    bubble.textContent = content;
+  }
+  wrap.appendChild(bubble);
+  chat.appendChild(wrap);
+  scrollAgentChat();
+}
+
+function appendAgentBubble(initialText) {
+  const chat = $('agentChat');
+  const wrap = document.createElement('div');
+  wrap.className = 'agent-msg agent-msg-assistant';
+  const bubble = document.createElement('div');
+  bubble.className = 'agent-msg-bubble';
+  bubble.textContent = initialText;
+  wrap.appendChild(bubble);
+  chat.appendChild(wrap);
+  scrollAgentChat();
+  return bubble;
+}
+
+function appendThinkingIndicator() {
+  const chat = $('agentChat');
+  const el = document.createElement('div');
+  el.className = 'agent-thinking';
+  el.textContent = t('agentThinking');
+  chat.appendChild(el);
+  scrollAgentChat();
+  return el;
+}
+
+function appendActionCard(desc) {
+  const chat = $('agentChat');
+  const card = document.createElement('div');
+  card.className = 'agent-action-card';
+
+  const label = document.createElement('span');
+  label.className = 'agent-action-label';
+  label.textContent = t('agentConfirmAction');
+
+  const descEl = document.createElement('span');
+  descEl.className = 'agent-action-desc';
+  descEl.textContent = desc;
+
+  const btns = document.createElement('div');
+  btns.className = 'agent-action-btns';
+  const confirmBtn = document.createElement('button');
+  confirmBtn.className = 'btn btn-sm agent-action-confirm';
+  confirmBtn.type = 'button';
+  confirmBtn.textContent = t('agentConfirmAction');
+  const cancelBtn = document.createElement('button');
+  cancelBtn.className = 'btn btn-outline btn-sm agent-action-cancel';
+  cancelBtn.type = 'button';
+  cancelBtn.textContent = t('agentCancelAction');
+  btns.appendChild(confirmBtn);
+  btns.appendChild(cancelBtn);
+
+  card.appendChild(label);
+  card.appendChild(descEl);
+  card.appendChild(btns);
+  chat.appendChild(card);
+  scrollAgentChat();
+  return card;
+}
+
+/** 返回一个 Promise，用户点击确认/取消后 resolve。 */
+function waitForConfirmation(cardEl) {
+  return new Promise((resolve) => {
+    const confirmBtn = cardEl.querySelector('.agent-action-confirm');
+    const cancelBtn = cardEl.querySelector('.agent-action-cancel');
+    const cleanup = () => {
+      confirmBtn.removeEventListener('click', onConfirm);
+      cancelBtn.removeEventListener('click', onCancel);
+    };
+    const onConfirm = () => { cleanup(); resolve(true); };
+    const onCancel = () => { cleanup(); resolve(false); };
+    confirmBtn.addEventListener('click', onConfirm);
+    cancelBtn.addEventListener('click', onCancel);
+  });
+}
+
+function updateActionCardResult(cardEl, result, confirmed) {
+  const btns = cardEl.querySelector('.agent-action-btns');
+  if (btns) btns.remove();
+  const resultEl = document.createElement('span');
+  resultEl.className = 'agent-action-desc';
+  const icon = confirmed ? (result.ok ? '✅' : '❌') : '🚫';
+  resultEl.textContent = `${icon} ${result.message}`;
+  cardEl.appendChild(resultEl);
+  scrollAgentChat();
+}
+
+function updateAgentInputState() {
+  const input = $('agentInput');
+  const sendBtn = $('agentSendBtn');
+  if (input) input.disabled = agentStreaming;
+  if (sendBtn) sendBtn.disabled = agentStreaming;
+}
+
+function scrollAgentChat() {
+  const chat = $('agentChat');
+  if (chat) chat.scrollTop = chat.scrollHeight;
 }
 
 /**

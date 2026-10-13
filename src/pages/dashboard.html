@@ -37,6 +37,7 @@
           <button class="tab" data-tab="allowlist" aria-pressed="false" data-i18n="tabAllowlist">白名单</button>
           <button class="tab" data-tab="health" aria-pressed="false" data-i18n="tabHealth">健康提醒</button>
           <button class="tab" data-tab="data" aria-pressed="false" data-i18n="tabData">计时与数据</button>
+          <button class="tab" data-tab="agent" aria-pressed="false" data-i18n="tabAgent">AI 助手</button>
           <button class="tab" data-tab="settings" aria-pressed="false" data-i18n="tabSettings">设置</button>
         </nav>
       </header>
@@ -300,6 +301,63 @@
           </div>
 
           <p class="privacy muted" data-i18n="privacy">所有数据仅保存在本机浏览器中，不上传任何服务器；只记录域名与时长，不记录页面内容。</p>
+        </section>
+
+        <!-- AI 助手 -->
+        <section id="tab-agent" class="panel" hidden>
+          <!-- 未配置态：连接 Ollama -->
+          <div class="card card-pad" id="agentSetupCard">
+            <h2 class="card-title" data-i18n="agentSetup">连接本地 Ollama</h2>
+            <p class="card-desc" data-i18n="agentSetupDesc">AI 助手通过本地 Ollama 模型分析你的使用数据。数据仅在本机流转，不上传任何服务器。</p>
+            <div class="agent-setup-form">
+              <label class="agent-field">
+                <span class="muted" data-i18n="agentEndpoint">Ollama 地址</span>
+                <input class="input" id="agentEndpointInput" type="text" value="http://localhost:11434" placeholder="http://localhost:11434" />
+              </label>
+              <button class="btn btn-sm" type="button" id="agentConnectBtn" data-i18n="agentConnect">连接</button>
+            </div>
+            <p class="agent-status muted" id="agentSetupStatus" hidden></p>
+            <div class="agent-setup-form" id="agentModelSelectWrap" hidden>
+              <label class="agent-field">
+                <span class="muted" data-i18n="agentSelectModel">选择模型</span>
+                <select class="input" id="agentModelSelect"></select>
+              </label>
+              <button class="btn btn-sm" type="button" id="agentEnterBtn" data-i18n="agentEnter">开始使用</button>
+            </div>
+          </div>
+
+          <!-- 已连接态：聊天界面 -->
+          <div class="card card-pad agent-chat-card" id="agentChatCard" hidden>
+            <div class="agent-header">
+              <div class="agent-model-bar">
+                <span class="agent-status-dot" id="agentStatusDot"></span>
+                <span class="muted" id="agentModelLabel"></span>
+              </div>
+              <div class="agent-actions">
+                <button class="btn btn-ghost btn-sm" type="button" id="agentClearBtn" data-i18n="agentClearChat">清空对话</button>
+                <button class="btn btn-ghost btn-sm" type="button" id="agentDisconnectBtn" data-i18n="agentDisconnect">断开连接</button>
+              </div>
+            </div>
+            <p class="privacy muted" data-i18n="agentPrivacyNote">数据仅在本机与本地 Ollama 之间流转，不经过任何外部服务器。</p>
+          </div>
+
+          <!-- 建议提问 -->
+          <div class="agent-suggest-row" id="agentSuggestRow" hidden>
+            <button class="chip" type="button" data-prompt="top" data-i18n="agentSuggestTop">我今天哪些网站花时间最多？</button>
+            <button class="chip" type="button" data-prompt="trend" data-i18n="agentSuggestTrend">分析我本周的使用趋势</button>
+            <button class="chip" type="button" data-prompt="limit" data-i18n="agentSuggestLimit">哪些网站建议设置限额？</button>
+            <button class="chip" type="button" data-prompt="focus" data-i18n="agentSuggestFocus">帮我开启专注模式</button>
+            <button class="chip" type="button" data-prompt="report" data-i18n="agentSuggestReport">生成本周使用报告</button>
+          </div>
+
+          <!-- 消息列表 -->
+          <div class="agent-chat" id="agentChat"></div>
+
+          <!-- 输入区 -->
+          <div class="agent-input-row" id="agentInputRow" hidden>
+            <textarea class="input agent-input" id="agentInput" rows="2" data-i18n-placeholder="agentInputPlaceholder" placeholder="问问你的使用习惯…"></textarea>
+            <button class="btn btn-sm" type="button" id="agentSendBtn" data-i18n="agentSend">发送</button>
+          </div>
         </section>
 
         <!-- 设置 -->

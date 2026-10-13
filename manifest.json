@@ -30,6 +30,7 @@
     "open_in_tab": true
   },
   "permissions": ["tabs", "storage", "unlimitedStorage", "idle", "alarms", "notifications", "contextMenus"],
+  "optional_host_permissions": ["http://localhost:11434/*"],
   "content_scripts": [
     {
       "matches": ["<all_urls>"],

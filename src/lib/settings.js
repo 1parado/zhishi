@@ -48,6 +48,9 @@ export const DEFAULT_SETTINGS = {
   // 分享卡片上的个人信息：name 昵称、avatar 头像（压缩后的 data URL）、
   // show 是否把昵称与头像画到卡片上。只存本机，不上传。
   profile: { name: '', avatar: '', show: true },
+  // AI 助手：连接本地 Ollama 模型，基于使用数据回答问题并执行操作。
+  // endpoint 默认 localhost:11434；model 用户从可用列表中选择。
+  agent: { enabled: false, endpoint: 'http://localhost:11434', model: '' },
   // 限额规则自增 id，同时用作拦截判定与展示排序。
   seq: 0,
 };
@@ -160,6 +163,14 @@ function normalize(raw) {
         ? merged.profile.avatar
         : '',
     show: merged.profile?.show !== false,
+  };
+  merged.agent = {
+    enabled: merged.agent?.enabled === true,
+    endpoint:
+      typeof merged.agent?.endpoint === 'string' && merged.agent.endpoint.trim()
+        ? merged.agent.endpoint.trim()
+        : 'http://localhost:11434',
+    model: typeof merged.agent?.model === 'string' ? merged.agent.model : '',
   };
   return merged;
 }

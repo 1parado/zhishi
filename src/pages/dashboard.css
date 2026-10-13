@@ -1158,3 +1158,263 @@ button.top-row:focus-visible {
     grid-column: 1 / -1;
   }
 }
+
+/* ---------- AI 助手 ---------- */
+
+.agent-setup-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.agent-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.agent-status {
+  margin-top: 8px;
+  font-size: 13px;
+}
+
+.agent-status.error {
+  color: var(--destructive);
+}
+
+.agent-chat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.agent-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.agent-model-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.agent-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--success);
+  flex-shrink: 0;
+}
+
+.agent-status-dot.offline {
+  background: var(--muted-foreground);
+}
+
+.agent-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.agent-suggest-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.agent-suggest-row .chip {
+  cursor: pointer;
+  font-size: 13px;
+  transition: border-color 0.15s, background 0.15s;
+  background: var(--card);
+}
+
+.agent-suggest-row .chip:hover {
+  border-color: var(--ring);
+  background: var(--accent);
+}
+
+.agent-chat {
+  max-height: 420px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 0;
+  min-height: 200px;
+}
+
+.agent-msg {
+  display: flex;
+  flex-direction: column;
+  max-width: 85%;
+  gap: 2px;
+}
+
+.agent-msg-user {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+.agent-msg-assistant {
+  align-self: flex-start;
+  align-items: flex-start;
+}
+
+.agent-msg-bubble {
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  font-size: 14px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.agent-msg-user .agent-msg-bubble {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.agent-msg-assistant .agent-msg-bubble {
+  background: var(--secondary);
+  color: var(--secondary-foreground);
+  border: 1px solid var(--border);
+}
+
+.agent-thinking {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 14px;
+  font-size: 14px;
+  color: var(--muted-foreground);
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  align-self: flex-start;
+}
+
+.agent-thinking::after {
+  content: '·';
+  animation: agent-dots 1.2s steps(4, end) infinite;
+}
+
+@keyframes agent-dots {
+  0% { content: ''; }
+  25% { content: '·'; }
+  50% { content: '··'; }
+  75% { content: '···'; }
+  100% { content: ''; }
+}
+
+.agent-action-card {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--accent);
+  max-width: 85%;
+  align-self: flex-start;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.agent-action-label {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.agent-action-desc {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.agent-action-btns {
+  display: flex;
+  gap: 8px;
+}
+
+.agent-input-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  margin-top: 12px;
+}
+
+.agent-input {
+  flex: 1;
+  resize: none;
+  min-height: 40px;
+  max-height: 120px;
+  font-family: inherit;
+  font-size: 14px;
+}
+
+.agent-input-row .btn {
+  white-space: nowrap;
+}
+
+/* Markdown 渲染样式（仅在 assistant 气泡内生效） */
+.agent-msg-bubble p { margin: 0; }
+.agent-msg-bubble p + p { margin-top: 8px; }
+.agent-msg-bubble h1, .agent-msg-bubble h2, .agent-msg-bubble h3, .agent-msg-bubble h4 {
+  margin: 12px 0 4px;
+  font-size: 1em;
+  font-weight: 700;
+}
+.agent-msg-bubble h1 { font-size: 1.2em; }
+.agent-msg-bubble h2 { font-size: 1.1em; }
+.agent-msg-bubble ul, .agent-msg-bubble ol {
+  margin: 4px 0;
+  padding-left: 20px;
+}
+.agent-msg-bubble li { margin: 2px 0; }
+.agent-msg-bubble pre {
+  margin: 8px 0;
+  padding: 10px 12px;
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 2px);
+  overflow-x: auto;
+}
+.agent-msg-bubble code {
+  font-family: ui-monospace, 'Cascadia Code', 'SF Mono', Consolas, monospace;
+  font-size: 0.85em;
+}
+.agent-msg-bubble pre code {
+  background: none;
+  padding: 0;
+  border: none;
+}
+.agent-msg-bubble :not(pre) > code {
+  padding: 1px 4px;
+  background: var(--background);
+  border-radius: 3px;
+  border: 1px solid var(--border);
+}
+.agent-msg-bubble blockquote {
+  margin: 8px 0;
+  padding-left: 12px;
+  border-left: 3px solid var(--border);
+  color: var(--muted-foreground);
+}
+.agent-msg-bubble a {
+  color: var(--chart-1);
+  text-decoration: underline;
+}
+.agent-msg-bubble hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 8px 0;
+}
+.agent-msg-bubble strong { font-weight: 700; }
+.agent-msg-bubble em { font-style: italic; }
+
+
